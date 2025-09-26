@@ -6,6 +6,8 @@
     <title>ZenCom - Komunitas Zen Anda</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Add Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .fade-in {
             animation: fadeIn 0.3s ease-in;
@@ -86,7 +88,7 @@
                         <label class="block text-gray-700 mb-2">Password</label>
                         <input type="password" id="password" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
                     </div>
-                    <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">
+                    <button type="submit" id="authSubmitBtn" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">
                         <span id="authBtnText">Masuk</span>
                     </button>
                 </form>
@@ -117,7 +119,7 @@
                         <input type="file" id="postImage" accept="image/*" class="w-full" onchange="previewImage(event)">
                         <img id="imagePreview" class="hidden mt-4 max-w-full rounded-lg">
                     </div>
-                    <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">
+                    <button type="submit" id="createPostBtn" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">
                         Posting
                     </button>
                 </form>
@@ -142,117 +144,63 @@
     </div>
 
     <script>
-        // Simulated SupaBase Database
-        class SupaBaseSimulator {
-            constructor() {
-                this.users = JSON.parse(localStorage.getItem('zencom_users')) || [];
-                this.posts = JSON.parse(localStorage.getItem('zencom_posts')) || [];
-                this.currentUser = JSON.parse(localStorage.getItem('zencom_current_user')) || null;
-            }
+        // --------------------------------------------------------------------------------
+        // SUPABASE INITIALIZATION
+        // --------------------------------------------------------------------------------
+        const SUPABASE_URL = 'https://spjdrgckbnjnctfgereg.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwamRyZ2NrYm5qbmN0ZmdlcmVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2Mjg1NjQsImV4cCI6MjA3NDIwNDU2NH0.7VDu-KvNdRrxcRtX6SvhUPEJqVfLeDSGN9yqazii78w';
 
-            async signUp(email, password, fullName) {
-                const user = {
-                    id: Date.now(),
-                    email,
-                    fullName,
-                    avatar: `https://picsum.photos/seed/${email}/40/40`
-                };
-                this.users.push(user);
-                localStorage.setItem('zencom_users', JSON.stringify(this.users));
-                return user;
-            }
+        const { createClient } = supabase;
+        const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-            async signIn(email, password) {
-                const user = this.users.find(u => u.email === email);
-                if (!user) throw new Error('User not found');
-                this.currentUser = user;
-                localStorage.setItem('zencom_current_user', JSON.stringify(user));
-                return user;
-            }
-
-            async signOut() {
-                this.currentUser = null;
-                localStorage.removeItem('zencom_current_user');
-            }
-
-            async createPost(content, imageUrl = null) {
-                const post = {
-                    id: Date.now(),
-                    userId: this.currentUser.id,
-                    userName: this.currentUser.fullName,
-                    userAvatar: this.currentUser.avatar,
-                    content,
-                    imageUrl,
-                    likes: [],
-                    comments: [],
-                    shares: 0,
-                    createdAt: new Date().toISOString()
-                };
-                this.posts.unshift(post);
-                localStorage.setItem('zencom_posts', JSON.stringify(this.posts));
-                return post;
-            }
-
-            async toggleLike(postId) {
-                const post = this.posts.find(p => p.id === postId);
-                if (!post) return;
-                
-                const userId = this.currentUser.id;
-                const likeIndex = post.likes.indexOf(userId);
-                
-                if (likeIndex === -1) {
-                    post.likes.push(userId);
-                } else {
-                    post.likes.splice(likeIndex, 1);
-                }
-                
-                localStorage.setItem('zencom_posts', JSON.stringify(this.posts));
-                return post;
-            }
-
-            async addComment(postId, content) {
-                const post = this.posts.find(p => p.id === postId);
-                if (!post) return;
-                
-                const comment = {
-                    id: Date.now(),
-                    userId: this.currentUser.id,
-                    userName: this.currentUser.fullName,
-                    userAvatar: this.currentUser.avatar,
-                    content,
-                    createdAt: new Date().toISOString()
-                };
-                
-                post.comments.push(comment);
-                localStorage.setItem('zencom_posts', JSON.stringify(this.posts));
-                return comment;
-            }
-
-            async getPosts() {
-                return this.posts;
-            }
-        }
-
-        // Initialize SupaBase
-        const supabase = new SupaBaseSimulator();
-
-        // Global Variables
+        // --------------------------------------------------------------------------------
+        // GLOBAL VARIABLES
+        // --------------------------------------------------------------------------------
         let isLoginMode = true;
         let currentImageFile = null;
+        let currentUser = null;
 
-        // Initialize App
+        // --------------------------------------------------------------------------------
+        // APP INITIALIZATION
+        // --------------------------------------------------------------------------------
         document.addEventListener('DOMContentLoaded', () => {
-            checkAuthStatus();
-            loadPosts();
+            // This listener handles auth state changes (login, logout)
+            db.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                    currentUser = session.user;
+                    updateUserUI(currentUser);
+                } else if (event === 'SIGNED_OUT') {
+                    currentUser = null;
+                    updateUserUI(null);
+                }
+                 // Always reload posts on auth change to reflect correct like/comment states
+                loadPosts();
+            });
         });
 
-        // Auth Functions
-        function checkAuthStatus() {
-            if (supabase.currentUser) {
-                document.getElementById('userMenu').classList.remove('hidden');
-                document.getElementById('loginBtn').classList.add('hidden');
-                document.getElementById('userName').textContent = supabase.currentUser.fullName;
-                document.getElementById('userAvatar').src = supabase.currentUser.avatar;
+        // --------------------------------------------------------------------------------
+        // AUTH FUNCTIONS
+        // --------------------------------------------------------------------------------
+        async function updateUserUI(user) {
+            const userMenu = document.getElementById('userMenu');
+            const loginBtn = document.getElementById('loginBtn');
+
+            if (user) {
+                const { data: profile, error } = await db
+                    .from('profiles')
+                    .select('full_name, avatar_url')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profile) {
+                    userMenu.classList.remove('hidden');
+                    loginBtn.classList.add('hidden');
+                    document.getElementById('userName').textContent = profile.full_name || user.email;
+                    document.getElementById('userAvatar').src = profile.avatar_url || `https://picsum.photos/seed/${user.id}/40/40`;
+                }
+            } else {
+                userMenu.classList.add('hidden');
+                loginBtn.classList.remove('hidden');
             }
         }
 
@@ -277,6 +225,7 @@
             const switchText = document.getElementById('authSwitchText');
             const switchBtn = document.getElementById('authSwitchBtn');
             const nameField = document.getElementById('nameField');
+            const fullNameInput = document.getElementById('fullName');
 
             if (isLoginMode) {
                 title.textContent = 'Masuk';
@@ -284,12 +233,14 @@
                 switchText.textContent = 'Belum punya akun?';
                 switchBtn.textContent = 'Daftar';
                 nameField.classList.add('hidden');
+                fullNameInput.required = false;
             } else {
                 title.textContent = 'Daftar';
                 btnText.textContent = 'Daftar';
                 switchText.textContent = 'Sudah punya akun?';
                 switchBtn.textContent = 'Masuk';
                 nameField.classList.remove('hidden');
+                fullNameInput.required = true;
             }
         }
 
@@ -298,43 +249,66 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const fullName = document.getElementById('fullName').value;
+            const submitBtn = document.getElementById('authSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Memproses...';
 
             try {
+                let response;
                 if (isLoginMode) {
-                    await supabase.signIn(email, password);
-                    showToast('Berhasil masuk!');
+                    response = await db.auth.signInWithPassword({ email, password });
                 } else {
-                    await supabase.signUp(email, password, fullName);
-                    showToast('Pendaftaran berhasil! Silakan masuk.');
+                    response = await db.auth.signUp({
+                        email,
+                        password,
+                        options: {
+                            data: {
+                                full_name: fullName,
+                                avatar_url: `https://picsum.photos/seed/${email}/40/40`
+                            }
+                        }
+                    });
+                }
+
+                const { error } = response;
+                if (error) throw error;
+
+                if (isLoginMode) {
+                    showToast('Berhasil masuk!');
+                    closeAuthModal();
+                } else {
+                    showToast('Pendaftaran berhasil! Silakan cek email Anda untuk verifikasi.');
+                    // Switch to login mode for convenience
                     isLoginMode = true;
                     updateAuthForm();
-                    return;
                 }
-                
-                closeAuthModal();
-                checkAuthStatus();
-                loadPosts();
             } catch (error) {
                 showToast(error.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                updateAuthForm(); // Reset button text
             }
         }
 
-        function logout() {
-            supabase.signOut();
-            document.getElementById('userMenu').classList.add('hidden');
-            document.getElementById('loginBtn').classList.remove('hidden');
-            showToast('Berhasil keluar');
-            loadPosts();
+        async function logout() {
+            const { error } = await db.auth.signOut();
+            if (error) {
+                showToast(error.message, 'error');
+            } else {
+                showToast('Berhasil keluar');
+            }
         }
 
         function toggleUserMenu() {
             document.getElementById('dropdownMenu').classList.toggle('hidden');
         }
 
-        // Post Functions
+        // --------------------------------------------------------------------------------
+        // POST FUNCTIONS
+        // --------------------------------------------------------------------------------
         function showCreatePost() {
-            if (!supabase.currentUser) {
-                showToast('Silakan masuk terlebih dahulu', 'error');
+            if (!currentUser) {
+                showToast('Silakan masuk terlebih dahulu untuk membuat postingan.', 'error');
                 return;
             }
             document.getElementById('createPostModal').classList.remove('hidden');
@@ -365,17 +339,45 @@
         async function createPost(event) {
             event.preventDefault();
             const content = document.getElementById('postContent').value;
-            let imageUrl = null;
+            const postBtn = document.getElementById('createPostBtn');
+            postBtn.disabled = true;
+            postBtn.textContent = 'Memposting...';
 
-            if (currentImageFile) {
-                // Simulate image upload - in real app, upload to SupaBase storage
-                imageUrl = `https://picsum.photos/seed/${Date.now()}/600/400`;
+            try {
+                let imageUrl = null;
+                if (currentImageFile) {
+                    const fileName = `${currentUser.id}/${Date.now()}-${currentImageFile.name}`;
+                    const { data: uploadData, error: uploadError } = await db.storage
+                        .from('post-images')
+                        .upload(fileName, currentImageFile);
+
+                    if (uploadError) throw uploadError;
+
+                    const { data: urlData } = db.storage
+                        .from('post-images')
+                        .getPublicUrl(uploadData.path);
+
+                    imageUrl = urlData.publicUrl;
+                }
+
+                const { error: insertError } = await db.from('posts').insert({
+                    user_id: currentUser.id,
+                    content: content,
+                    image_url: imageUrl
+                });
+
+                if (insertError) throw insertError;
+
+                closeCreatePost();
+                loadPosts();
+                showToast('Postingan berhasil dibuat!');
+
+            } catch (error) {
+                showToast(error.message, 'error');
+            } finally {
+                postBtn.disabled = false;
+                postBtn.textContent = 'Posting';
             }
-
-            await supabase.createPost(content, imageUrl);
-            closeCreatePost();
-            loadPosts();
-            showToast('Postingan berhasil dibuat!');
         }
 
         async function loadPosts() {
@@ -385,109 +387,156 @@
             loading.classList.remove('hidden');
             container.innerHTML = '';
 
-            const posts = await supabase.getPosts();
-            
-            setTimeout(() => {
-                loading.classList.add('hidden');
-                if (posts.length === 0) {
-                    container.innerHTML = `
-                        <div class="text-center py-12">
-                            <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
-                            <p class="text-gray-500">Belum ada postingan</p>
-                        </div>
-                    `;
-                } else {
-                    posts.forEach(post => {
-                        container.appendChild(createPostElement(post));
-                    });
-                }
-            }, 500);
+            const { data: posts, error } = await db
+                .from('posts')
+                .select(`
+                    *,
+                    profiles (full_name, avatar_url),
+                    likes (user_id),
+                    comments (
+                        *,
+                        profiles (full_name, avatar_url)
+                    )
+                `)
+                .order('created_at', { ascending: false });
+
+            loading.classList.add('hidden');
+
+            if (error) {
+                showToast(error.message, 'error');
+                return;
+            }
+
+            if (posts.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12">
+                        <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-500">Belum ada postingan. Jadilah yang pertama!</p>
+                    </div>
+                `;
+            } else {
+                posts.forEach(post => {
+                    container.appendChild(createPostElement(post));
+                });
+            }
         }
 
         function createPostElement(post) {
             const div = document.createElement('div');
             div.className = 'bg-white rounded-lg shadow-md p-6 post-card fade-in';
             
-            const isLiked = supabase.currentUser && post.likes.includes(supabase.currentUser.id);
+            const isLiked = currentUser && post.likes.some(like => like.user_id === currentUser.id);
             const likeCount = post.likes.length;
+            const commentCount = post.comments.length;
             
             div.innerHTML = `
                 <div class="flex items-start space-x-4 mb-4">
-                    <img src="${post.userAvatar}" alt="${post.userName}" class="w-12 h-12 rounded-full">
+                    <img src="${post.profiles.avatar_url || `https://picsum.photos/seed/${post.user_id}/40/40`}" alt="${post.profiles.full_name}" class="w-12 h-12 rounded-full">
                     <div class="flex-1">
-                        <h3 class="font-semibold text-gray-900">${post.userName}</h3>
-                        <p class="text-sm text-gray-500">${formatDate(post.createdAt)}</p>
+                        <h3 class="font-semibold text-gray-900">${post.profiles.full_name || 'Anonymous'}</h3>
+                        <p class="text-sm text-gray-500">${formatDate(post.created_at)}</p>
                     </div>
                 </div>
-                <p class="text-gray-800 mb-4">${post.content}</p>
-                ${post.imageUrl ? `<img src="${post.imageUrl}" alt="Post image" class="w-full rounded-lg mb-4 cursor-pointer" onclick="downloadImage('${post.imageUrl}', '${post.id}')">` : ''}
+                <p class="text-gray-800 mb-4 whitespace-pre-wrap">${post.content}</p>
+                ${post.image_url ? `<img src="${post.image_url}" alt="Post image" class="w-full rounded-lg mb-4">` : ''}
                 <div class="flex items-center justify-between pt-4 border-t">
                     <div class="flex items-center space-x-6">
                         <button onclick="toggleLike(${post.id})" class="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition">
                             <i class="fas fa-heart ${isLiked ? 'text-red-600' : ''}"></i>
-                            <span>${likeCount}</span>
+                            <span id="like-count-${post.id}">${likeCount}</span>
                         </button>
                         <button onclick="toggleComments(${post.id})" class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition">
                             <i class="fas fa-comment"></i>
-                            <span>${post.comments.length}</span>
+                            <span>${commentCount}</span>
                         </button>
-                        <button onclick="sharePost(${post.id})" class="flex items-center space-x-2 text-gray-600 hover:text-green-600 transition">
+                        <button onclick="sharePost(${post.id}, '${post.content.substring(0, 100)}')" class="flex items-center space-x-2 text-gray-600 hover:text-green-600 transition">
                             <i class="fas fa-share"></i>
-                            <span>${post.shares}</span>
                         </button>
                     </div>
-                    ${post.imageUrl ? `<button onclick="downloadImage('${post.imageUrl}', '${post.id}')" class="text-gray-600 hover:text-indigo-600 transition">
+                    ${post.image_url ? `<a href="${post.image_url}" download="zencom-post-${post.id}.jpg" target="_blank" class="text-gray-600 hover:text-indigo-600 transition">
                         <i class="fas fa-download"></i>
-                    </button>` : ''}
+                    </a>` : ''}
                 </div>
                 <div id="comments-${post.id}" class="hidden mt-4 pt-4 border-t">
-                    <div class="mb-4">
+                    <div class="mb-4 space-y-3">
                         ${post.comments.map(comment => `
-                            <div class="flex items-start space-x-3 mb-3">
-                                <img src="${comment.userAvatar}" alt="${comment.userName}" class="w-8 h-8 rounded-full">
-                                <div class="flex-1">
-                                    <p class="font-semibold text-sm">${comment.userName}</p>
-                                    <p class="text-gray-700">${comment.content}</p>
-                                    <p class="text-xs text-gray-500">${formatDate(comment.createdAt)}</p>
+                            <div class="flex items-start space-x-3">
+                                <img src="${comment.profiles.avatar_url || `https://picsum.photos/seed/${comment.user_id}/40/40`}" alt="${comment.profiles.full_name}" class="w-8 h-8 rounded-full">
+                                <div class="flex-1 bg-gray-100 rounded-lg p-2">
+                                    <p class="font-semibold text-sm">${comment.profiles.full_name || 'Anonymous'}</p>
+                                    <p class="text-gray-700 text-sm">${comment.content}</p>
                                 </div>
                             </div>
                         `).join('')}
                     </div>
-                    ${supabase.currentUser ? `
+                    ${currentUser ? `
                         <form onsubmit="addComment(event, ${post.id})" class="flex space-x-2">
                             <input type="text" id="comment-input-${post.id}" placeholder="Tulis komentar..." class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
                             <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
-                                Kirim
+                                <i class="fas fa-paper-plane"></i>
                             </button>
                         </form>
-                    ` : '<p class="text-gray-500 text-sm">Silakan masuk untuk berkomentar</p>'}
+                    ` : '<p class="text-gray-500 text-sm">Silakan masuk untuk berkomentar.</p>'}
                 </div>
             `;
             
             return div;
         }
 
+        // --------------------------------------------------------------------------------
+        // INTERACTION FUNCTIONS
+        // --------------------------------------------------------------------------------
         async function toggleLike(postId) {
-            if (!supabase.currentUser) {
-                showToast('Silakan masuk terlebih dahulu', 'error');
+            if (!currentUser) {
+                showToast('Silakan masuk untuk menyukai postingan.', 'error');
                 return;
             }
-            
-            const post = await supabase.toggleLike(postId);
+
             const likeBtn = event.currentTarget;
             const icon = likeBtn.querySelector('i');
-            const count = likeBtn.querySelector('span');
-            
+            const countSpan = document.getElementById(`like-count-${postId}`);
+            let likeCount = parseInt(countSpan.textContent);
+
+            // Optimistic UI update
             icon.classList.add('like-animation');
             setTimeout(() => icon.classList.remove('like-animation'), 300);
-            
-            if (post.likes.includes(supabase.currentUser.id)) {
-                icon.classList.add('text-red-600');
-            } else {
-                icon.classList.remove('text-red-600');
+
+            // First, check if a like from this user already exists for this post
+            const { data: existingLike, error: selectError } = await db
+                .from('likes')
+                .select('id')
+                .eq('post_id', postId)
+                .eq('user_id', currentUser.id)
+                .single();
+
+            if (selectError && selectError.code !== 'PGRST116') { // PGRST116: 'exact-one-not-found' is expected
+                showToast(selectError.message, 'error');
+                return;
             }
-            
-            count.textContent = post.likes.length;
+
+            if (existingLike) {
+                // Unlike the post
+                icon.classList.remove('text-red-600');
+                countSpan.textContent = --likeCount;
+                const { error: deleteError } = await db.from('likes').delete().match({ id: existingLike.id });
+                if (deleteError) {
+                    showToast(deleteError.message, 'error');
+                    // Revert UI on error
+                    icon.classList.add('text-red-600');
+                    countSpan.textContent = ++likeCount;
+                }
+            } else {
+                // Like the post
+                icon.classList.add('text-red-600');
+                countSpan.textContent = ++likeCount;
+                const { error: insertError } = await db.from('likes').insert({ post_id: postId, user_id: currentUser.id });
+                if (insertError) {
+                    showToast(insertError.message, 'error');
+                    // Revert UI on error
+                    icon.classList.remove('text-red-600');
+                    countSpan.textContent = --likeCount;
+                }
+            }
         }
 
         function toggleComments(postId) {
@@ -502,46 +551,38 @@
             
             if (!content) return;
             
-            await supabase.addComment(postId, content);
-            input.value = '';
-            loadPosts();
-            showToast('Komentar berhasil ditambahkan!');
-        }
+            const { error } = await db.from('comments').insert({
+                post_id: postId,
+                user_id: currentUser.id,
+                content: content
+            });
 
-        function sharePost(postId) {
-            const post = supabase.posts.find(p => p.id === postId);
-            if (post) {
-                post.shares++;
-                localStorage.setItem('zencom_posts', JSON.stringify(supabase.posts));
-                
-                // Simulate share functionality
-                if (navigator.share) {
-                    navigator.share({
-                        title: 'ZenCom Post',
-                        text: post.content,
-                        url: window.location.href
-                    });
-                } else {
-                    // Fallback: copy to clipboard
-                    navigator.clipboard.writeText(`${post.content}\n\nDibagikan dari ZenCom`);
-                    showToast('Link berhasil disalin!');
-                }
-                
+            if (error) {
+                showToast(error.message, 'error');
+            } else {
+                input.value = '';
+                showToast('Komentar berhasil ditambahkan!');
+                // Reload posts to show the new comment
                 loadPosts();
             }
         }
 
-        function downloadImage(imageUrl, postId) {
-            const link = document.createElement('a');
-            link.href = imageUrl;
-            link.download = `zencom-post-${postId}.jpg`;
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            showToast('Gambar berhasil diunduh!');
+        function sharePost(postId, content) {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Lihat postingan ini di ZenCom',
+                    text: content,
+                    url: window.location.href
+                });
+            } else {
+                navigator.clipboard.writeText(`${content}\n\nDibagikan dari ZenCom: ${window.location.href}`);
+                showToast('Link postingan berhasil disalin!');
+            }
         }
 
+        // --------------------------------------------------------------------------------
+        // UTILITY FUNCTIONS
+        // --------------------------------------------------------------------------------
         function showProfile() {
             showToast('Fitur profil akan segera hadir!');
         }
@@ -551,7 +592,7 @@
             const toastMessage = document.getElementById('toastMessage');
             
             toastMessage.textContent = message;
-            toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg fade-in ${
+            toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg fade-in z-50 ${
                 type === 'error' ? 'bg-red-600' : 'bg-gray-800'
             } text-white`;
             
@@ -565,26 +606,24 @@
         function formatDate(dateString) {
             const date = new Date(dateString);
             const now = new Date();
-            const diff = now - date;
+            const diff = now.getTime() - date.getTime();
             
             if (diff < 60000) return 'Baru saja';
             if (diff < 3600000) return `${Math.floor(diff / 60000)} menit yang lalu`;
             if (diff < 86400000) return `${Math.floor(diff / 3600000)} jam yang lalu`;
             if (diff < 604800000) return `${Math.floor(diff / 86400000)} hari yang lalu`;
             
-            return date.toLocaleDateString('id-ID');
+            return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
         }
 
         // Close dropdown when clicking outside
         document.addEventListener('click', (event) => {
             const userMenu = document.getElementById('userMenu');
-            const dropdownMenu = document.getElementById('dropdownMenu');
-            
-            if (!userMenu.contains(event.target)) {
-                dropdownMenu.classList.add('hidden');
+            if (userMenu && !userMenu.contains(event.target)) {
+                const dropdownMenu = document.getElementById('dropdownMenu');
+                if(dropdownMenu) dropdownMenu.classList.add('hidden');
             }
         });
     </script>
 </body>
 </html>
-
