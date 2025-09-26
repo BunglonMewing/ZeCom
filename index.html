@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZenCom - Komunitas Zen Anda</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .post-card {
+            transition: all 0.3s ease;
+        }
+        .post-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .like-animation {
+            animation: likeScale 0.3s ease;
+        }
+        @keyframes likeScale {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-indigo-600">ZenCom</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="showCreatePost()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+                        <i class="fas fa-plus mr-2"></i>Buat Postingan
+                    </button>
+                    <div id="userMenu" class="hidden">
+                        <div class="relative">
+                            <button onclick="toggleUserMenu()" class="flex items-center space-x-2 text-gray-700 hover:text-gray-900">
+                                <img id="userAvatar" src="https://picsum.photos/seed/user/40/40" alt="User" class="w-8 h-8 rounded-full">
+                                <span id="userName">User</span>
+                                <i class="fas fa-chevron-down text-sm"></i>
+                            </button>
+                            <div id="dropdownMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2">
+                                <a href="#" onclick="showProfile()" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">Profil</a>
+                                <a href="#" onclick="logout()" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">Keluar</a>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="loginBtn" onclick="showLogin()" class="text-gray-700 hover:text-gray-900">Masuk</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Auth Modals -->
+        <div id="authModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4 fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 id="authTitle" class="text-2xl font-bold">Masuk</h2>
+                    <button onclick="closeAuthModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <form id="authForm" onsubmit="handleAuth(event)">
+                    <div id="nameField" class="hidden mb-4">
+                        <label class="block text-gray-700 mb-2">Nama Lengkap</label>
+                        <input type="text" id="fullName" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">Email</label>
+                        <input type="email" id="email" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-gray-700 mb-2">Password</label>
+                        <input type="password" id="password" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">
+                        <span id="authBtnText">Masuk</span>
+                    </button>
+                </form>
+                <p class="mt-4 text-center text-gray-600">
+                    <span id="authSwitchText">Belum punya akun?</span>
+                    <button onclick="switchAuthMode()" class="text-indigo-600 hover:underline ml-1">
+                        <span id="authSwitchBtn">Daftar</span>
+                    </button>
+                </p>
+            </div>
+        </div>
+
+        <!-- Create Post Modal -->
+        <div id="createPostModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Buat Postingan Baru</h2>
+                    <button onclick="closeCreatePost()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <form onsubmit="createPost(event)">
+                    <div class="mb-4">
+                        <textarea id="postContent" rows="4" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Apa yang Anda pikirkan?" required></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">Upload Gambar (Opsional)</label>
+                        <input type="file" id="postImage" accept="image/*" class="w-full" onchange="previewImage(event)">
+                        <img id="imagePreview" class="hidden mt-4 max-w-full rounded-lg">
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">
+                        Posting
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Posts Feed -->
+        <div id="postsContainer" class="space-y-6">
+            <!-- Posts will be dynamically inserted here -->
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-4xl text-indigo-600"></i>
+            <p class="mt-2 text-gray-600">Memuat postingan...</p>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="hidden fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg fade-in">
+        <span id="toastMessage"></span>
+    </div>
+
+    <script>
+        // Simulated SupaBase Database
+        class SupaBaseSimulator {
+            constructor() {
+                this.users = JSON.parse(localStorage.getItem('zencom_users')) || [];
+                this.posts = JSON.parse(localStorage.getItem('zencom_posts')) || [];
+                this.currentUser = JSON.parse(localStorage.getItem('zencom_current_user')) || null;
+            }
+
+            async signUp(email, password, fullName) {
+                const user = {
+                    id: Date.now(),
+                    email,
+                    fullName,
+                    avatar: `https://picsum.photos/seed/${email}/40/40`
+                };
+                this.users.push(user);
+                localStorage.setItem('zencom_users', JSON.stringify(this.users));
+                return user;
+            }
+
+            async signIn(email, password) {
+                const user = this.users.find(u => u.email === email);
+                if (!user) throw new Error('User not found');
+                this.currentUser = user;
+                localStorage.setItem('zencom_current_user', JSON.stringify(user));
+                return user;
+            }
+
+            async signOut() {
+                this.currentUser = null;
+                localStorage.removeItem('zencom_current_user');
+            }
+
+            async createPost(content, imageUrl = null) {
+                const post = {
+                    id: Date.now(),
+                    userId: this.currentUser.id,
+                    userName: this.currentUser.fullName,
+                    userAvatar: this.currentUser.avatar,
+                    content,
+                    imageUrl,
+                    likes: [],
+                    comments: [],
+                    shares: 0,
+                    createdAt: new Date().toISOString()
+                };
+                this.posts.unshift(post);
+                localStorage.setItem('zencom_posts', JSON.stringify(this.posts));
+                return post;
+            }
+
+            async toggleLike(postId) {
+                const post = this.posts.find(p => p.id === postId);
+                if (!post) return;
+                
+                const userId = this.currentUser.id;
+                const likeIndex = post.likes.indexOf(userId);
+                
+                if (likeIndex === -1) {
+                    post.likes.push(userId);
+                } else {
+                    post.likes.splice(likeIndex, 1);
+                }
+                
+                localStorage.setItem('zencom_posts', JSON.stringify(this.posts));
+                return post;
+            }
+
+            async addComment(postId, content) {
+                const post = this.posts.find(p => p.id === postId);
+                if (!post) return;
+                
+                const comment = {
+                    id: Date.now(),
+                    userId: this.currentUser.id,
+                    userName: this.currentUser.fullName,
+                    userAvatar: this.currentUser.avatar,
+                    content,
+                    createdAt: new Date().toISOString()
+                };
+                
+                post.comments.push(comment);
+                localStorage.setItem('zencom_posts', JSON.stringify(this.posts));
+                return comment;
+            }
+
+            async getPosts() {
+                return this.posts;
+            }
+        }
+
+        // Initialize SupaBase
+        const supabase = new SupaBaseSimulator();
+
+        // Global Variables
+        let isLoginMode = true;
+        let currentImageFile = null;
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuthStatus();
+            loadPosts();
+        });
+
+        // Auth Functions
+        function checkAuthStatus() {
+            if (supabase.currentUser) {
+                document.getElementById('userMenu').classList.remove('hidden');
+                document.getElementById('loginBtn').classList.add('hidden');
+                document.getElementById('userName').textContent = supabase.currentUser.fullName;
+                document.getElementById('userAvatar').src = supabase.currentUser.avatar;
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('authModal').classList.remove('hidden');
+            isLoginMode = true;
+            updateAuthForm();
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.add('hidden');
+        }
+
+        function switchAuthMode() {
+            isLoginMode = !isLoginMode;
+            updateAuthForm();
+        }
+
+        function updateAuthForm() {
+            const title = document.getElementById('authTitle');
+            const btnText = document.getElementById('authBtnText');
+            const switchText = document.getElementById('authSwitchText');
+            const switchBtn = document.getElementById('authSwitchBtn');
+            const nameField = document.getElementById('nameField');
+
+            if (isLoginMode) {
+                title.textContent = 'Masuk';
+                btnText.textContent = 'Masuk';
+                switchText.textContent = 'Belum punya akun?';
+                switchBtn.textContent = 'Daftar';
+                nameField.classList.add('hidden');
+            } else {
+                title.textContent = 'Daftar';
+                btnText.textContent = 'Daftar';
+                switchText.textContent = 'Sudah punya akun?';
+                switchBtn.textContent = 'Masuk';
+                nameField.classList.remove('hidden');
+            }
+        }
+
+        async function handleAuth(event) {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const fullName = document.getElementById('fullName').value;
+
+            try {
+                if (isLoginMode) {
+                    await supabase.signIn(email, password);
+                    showToast('Berhasil masuk!');
+                } else {
+                    await supabase.signUp(email, password, fullName);
+                    showToast('Pendaftaran berhasil! Silakan masuk.');
+                    isLoginMode = true;
+                    updateAuthForm();
+                    return;
+                }
+                
+                closeAuthModal();
+                checkAuthStatus();
+                loadPosts();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        function logout() {
+            supabase.signOut();
+            document.getElementById('userMenu').classList.add('hidden');
+            document.getElementById('loginBtn').classList.remove('hidden');
+            showToast('Berhasil keluar');
+            loadPosts();
+        }
+
+        function toggleUserMenu() {
+            document.getElementById('dropdownMenu').classList.toggle('hidden');
+        }
+
+        // Post Functions
+        function showCreatePost() {
+            if (!supabase.currentUser) {
+                showToast('Silakan masuk terlebih dahulu', 'error');
+                return;
+            }
+            document.getElementById('createPostModal').classList.remove('hidden');
+        }
+
+        function closeCreatePost() {
+            document.getElementById('createPostModal').classList.add('hidden');
+            document.getElementById('postContent').value = '';
+            document.getElementById('postImage').value = '';
+            document.getElementById('imagePreview').classList.add('hidden');
+            currentImageFile = null;
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                currentImageFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function createPost(event) {
+            event.preventDefault();
+            const content = document.getElementById('postContent').value;
+            let imageUrl = null;
+
+            if (currentImageFile) {
+                // Simulate image upload - in real app, upload to SupaBase storage
+                imageUrl = `https://picsum.photos/seed/${Date.now()}/600/400`;
+            }
+
+            await supabase.createPost(content, imageUrl);
+            closeCreatePost();
+            loadPosts();
+            showToast('Postingan berhasil dibuat!');
+        }
+
+        async function loadPosts() {
+            const container = document.getElementById('postsContainer');
+            const loading = document.getElementById('loadingState');
+            
+            loading.classList.remove('hidden');
+            container.innerHTML = '';
+
+            const posts = await supabase.getPosts();
+            
+            setTimeout(() => {
+                loading.classList.add('hidden');
+                if (posts.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-12">
+                            <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-500">Belum ada postingan</p>
+                        </div>
+                    `;
+                } else {
+                    posts.forEach(post => {
+                        container.appendChild(createPostElement(post));
+                    });
+                }
+            }, 500);
+        }
+
+        function createPostElement(post) {
+            const div = document.createElement('div');
+            div.className = 'bg-white rounded-lg shadow-md p-6 post-card fade-in';
+            
+            const isLiked = supabase.currentUser && post.likes.includes(supabase.currentUser.id);
+            const likeCount = post.likes.length;
+            
+            div.innerHTML = `
+                <div class="flex items-start space-x-4 mb-4">
+                    <img src="${post.userAvatar}" alt="${post.userName}" class="w-12 h-12 rounded-full">
+                    <div class="flex-1">
+                        <h3 class="font-semibold text-gray-900">${post.userName}</h3>
+                        <p class="text-sm text-gray-500">${formatDate(post.createdAt)}</p>
+                    </div>
+                </div>
+                <p class="text-gray-800 mb-4">${post.content}</p>
+                ${post.imageUrl ? `<img src="${post.imageUrl}" alt="Post image" class="w-full rounded-lg mb-4 cursor-pointer" onclick="downloadImage('${post.imageUrl}', '${post.id}')">` : ''}
+                <div class="flex items-center justify-between pt-4 border-t">
+                    <div class="flex items-center space-x-6">
+                        <button onclick="toggleLike(${post.id})" class="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition">
+                            <i class="fas fa-heart ${isLiked ? 'text-red-600' : ''}"></i>
+                            <span>${likeCount}</span>
+                        </button>
+                        <button onclick="toggleComments(${post.id})" class="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition">
+                            <i class="fas fa-comment"></i>
+                            <span>${post.comments.length}</span>
+                        </button>
+                        <button onclick="sharePost(${post.id})" class="flex items-center space-x-2 text-gray-600 hover:text-green-600 transition">
+                            <i class="fas fa-share"></i>
+                            <span>${post.shares}</span>
+                        </button>
+                    </div>
+                    ${post.imageUrl ? `<button onclick="downloadImage('${post.imageUrl}', '${post.id}')" class="text-gray-600 hover:text-indigo-600 transition">
+                        <i class="fas fa-download"></i>
+                    </button>` : ''}
+                </div>
+                <div id="comments-${post.id}" class="hidden mt-4 pt-4 border-t">
+                    <div class="mb-4">
+                        ${post.comments.map(comment => `
+                            <div class="flex items-start space-x-3 mb-3">
+                                <img src="${comment.userAvatar}" alt="${comment.userName}" class="w-8 h-8 rounded-full">
+                                <div class="flex-1">
+                                    <p class="font-semibold text-sm">${comment.userName}</p>
+                                    <p class="text-gray-700">${comment.content}</p>
+                                    <p class="text-xs text-gray-500">${formatDate(comment.createdAt)}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ${supabase.currentUser ? `
+                        <form onsubmit="addComment(event, ${post.id})" class="flex space-x-2">
+                            <input type="text" id="comment-input-${post.id}" placeholder="Tulis komentar..." class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+                                Kirim
+                            </button>
+                        </form>
+                    ` : '<p class="text-gray-500 text-sm">Silakan masuk untuk berkomentar</p>'}
+                </div>
+            `;
+            
+            return div;
+        }
+
+        async function toggleLike(postId) {
+            if (!supabase.currentUser) {
+                showToast('Silakan masuk terlebih dahulu', 'error');
+                return;
+            }
+            
+            const post = await supabase.toggleLike(postId);
+            const likeBtn = event.currentTarget;
+            const icon = likeBtn.querySelector('i');
+            const count = likeBtn.querySelector('span');
+            
+            icon.classList.add('like-animation');
+            setTimeout(() => icon.classList.remove('like-animation'), 300);
+            
+            if (post.likes.includes(supabase.currentUser.id)) {
+                icon.classList.add('text-red-600');
+            } else {
+                icon.classList.remove('text-red-600');
+            }
+            
+            count.textContent = post.likes.length;
+        }
+
+        function toggleComments(postId) {
+            const commentsDiv = document.getElementById(`comments-${postId}`);
+            commentsDiv.classList.toggle('hidden');
+        }
+
+        async function addComment(event, postId) {
+            event.preventDefault();
+            const input = document.getElementById(`comment-input-${postId}`);
+            const content = input.value.trim();
+            
+            if (!content) return;
+            
+            await supabase.addComment(postId, content);
+            input.value = '';
+            loadPosts();
+            showToast('Komentar berhasil ditambahkan!');
+        }
+
+        function sharePost(postId) {
+            const post = supabase.posts.find(p => p.id === postId);
+            if (post) {
+                post.shares++;
+                localStorage.setItem('zencom_posts', JSON.stringify(supabase.posts));
+                
+                // Simulate share functionality
+                if (navigator.share) {
+                    navigator.share({
+                        title: 'ZenCom Post',
+                        text: post.content,
+                        url: window.location.href
+                    });
+                } else {
+                    // Fallback: copy to clipboard
+                    navigator.clipboard.writeText(`${post.content}\n\nDibagikan dari ZenCom`);
+                    showToast('Link berhasil disalin!');
+                }
+                
+                loadPosts();
+            }
+        }
+
+        function downloadImage(imageUrl, postId) {
+            const link = document.createElement('a');
+            link.href = imageUrl;
+            link.download = `zencom-post-${postId}.jpg`;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Gambar berhasil diunduh!');
+        }
+
+        function showProfile() {
+            showToast('Fitur profil akan segera hadir!');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg fade-in ${
+                type === 'error' ? 'bg-red-600' : 'bg-gray-800'
+            } text-white`;
+            
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'Baru saja';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)} menit yang lalu`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)} jam yang lalu`;
+            if (diff < 604800000) return `${Math.floor(diff / 86400000)} hari yang lalu`;
+            
+            return date.toLocaleDateString('id-ID');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (event) => {
+            const userMenu = document.getElementById('userMenu');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            
+            if (!userMenu.contains(event.target)) {
+                dropdownMenu.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
+
