@@ -946,6 +946,9 @@
                 <button onclick="login()" class="zen-button" style="width: 100%;">
                     Masuk
                 </button>
+                <button onclick="loginWithGitHub()" class="zen-button" style="width: 100%; margin-top: 0.5rem; background: #333;">
+                    <i class="fab fa-github"></i> Masuk dengan GitHub
+                </button>
                 <p class="form-link">
                     Belum punya akun? <a href="#" onclick="showRegister()">Daftar</a>
                 </p>
@@ -995,9 +998,15 @@
 
     <script>
         // Initialize Supabase
-        const supabaseUrl = 'https://xalacqxnlhjelpcqexle.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbGFjcXhubGhqZWxwY3FleGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NDYwNzIsImV4cCI6MjA3NDUyMjA3Mn0.t4eaDIvIxkZQVg5pDIg_Kt5_xg2pIG7sfdsmL6poMjQ';
-        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        const supabaseUrl = 'https://ovirqmxklhhbmxqbbxsz.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92aXJxbXhrbGhoYm14cWJieHN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjM0ODIsImV4cCI6MjA3NDUzOTQ4Mn0.4ipBgvya5CXAC4phkkskaxnJvFoVDsaQO0Lt0p9Rd0k';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true
+            }
+        });
 
         // Global state
         let currentUser = null;
@@ -1071,6 +1080,16 @@
             }
         }
 
+        async function loginWithGitHub() {
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'github'
+            });
+
+            if (error) {
+                showNotification('Gagal masuk dengan GitHub: ' + error.message, 'error');
+            }
+        }
+
         async function register() {
             const name = document.getElementById('registerName').value;
             const username = document.getElementById('registerUsername').value;
@@ -1103,8 +1122,12 @@
                 
                 if (profileError) throw profileError;
                 
-                showNotification('Registrasi berhasil! Silakan cek email Anda.');
-                showLogin();
+                // Log in the user directly after registration
+                currentUser = data.user;
+                updateUserUI();
+                loadUserData();
+                toggleAuth();
+                showNotification('Registrasi berhasil! Selamat datang di ZenCom! 🧘‍♀️');
             } catch (error) {
                 showNotification('Registrasi gagal: ' + error.message, 'error');
             }
