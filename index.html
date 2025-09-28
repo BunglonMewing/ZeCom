@@ -869,9 +869,11 @@
                     <img id="currentUserAvatar" src="https://picsum.photos/seed/currentuser/60/60" alt="User" class="post-avatar">
                     <div class="post-input-container">
                         <textarea id="postContent" placeholder="Bagikan zen Anda..." class="post-textarea" rows="4"></textarea>
+                            <input type="file" id="imageUpload" class="hidden" accept="image/*" onchange="handleImageSelection(event)">
+                            <img id="imagePreview" src="" alt="Pratinjau Gambar" class="hidden" style="max-width: 100%; border-radius: 0.75rem; margin-top: 1rem;">
                         <div class="post-actions">
                             <div class="post-tools">
-                                <button class="tool-button">
+                                    <button id="imageUploadBtn" class="tool-button" onclick="document.getElementById('imageUpload').click()">
                                     <i class="fas fa-image tool-icon"></i>
                                 </button>
                                 <button class="tool-button">
@@ -986,6 +988,13 @@
         </div>
     </div>
 
+    <!-- Image Detail Modal -->
+    <div id="imageDetailModal" class="modal" onclick="closeImageDetail()">
+        <div class="modal-content" style="max-width: 90vw; max-height: 90vh; padding: 0; background: transparent;">
+            <img id="imageDetailContent" src="" style="width: auto; height: auto; max-width: 100%; max-height: 100%; border-radius: 1.5rem;">
+        </div>
+    </div>
+
     <!-- Notification Toast -->
     <div id="notificationToast" class="notification-toast">
         <div class="notification-content">
@@ -1011,6 +1020,7 @@
         // Global state
         let currentUser = null;
         let posts = [];
+        let selectedFile = null;
         let trendingTopics = [
             { topic: '#ZenCom', count: 15420 },
             { topic: '#Mindfulness', count: 8932 },
@@ -1110,13 +1120,15 @@
                 
                 if (error) throw error;
                 
+                const avatarUrl = createAvatarPlaceholder(name);
+
                 // Create user profile
                 const { error: profileError } = await supabase.from('profiles').insert([
                     {
                         id: data.user.id,
                         name: name,
                         username: username,
-                        avatar_url: `https://picsum.photos/seed/${username}/200/200`
+                        avatar_url: avatarUrl
                     }
                 ]);
                 
@@ -1161,7 +1173,7 @@
         async function loadUserData() {
             if (!currentUser) return;
             
-            const { data: profile, error } = await supabase
+            let { data: profile, error } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', currentUser.id)
@@ -1173,6 +1185,22 @@
             }
             
             if (profile) {
+                if (profile.avatar_url.includes('picsum.photos')) {
+                    const newAvatarUrl = createAvatarPlaceholder(profile.name);
+                    const { data: updatedProfile, error: updateError } = await supabase
+                        .from('profiles')
+                        .update({ avatar_url: newAvatarUrl })
+                        .eq('id', currentUser.id)
+                        .select()
+                        .single();
+
+                    if (updateError) {
+                        console.error('Error updating avatar:', updateError);
+                    } else {
+                        profile = updatedProfile;
+                    }
+                }
+
                 document.getElementById('userName').textContent = profile.name;
                 document.getElementById('userHandle').textContent = '@' + profile.username;
                 document.getElementById('userAvatar').src = profile.avatar_url;
@@ -1191,6 +1219,44 @@
         }
 
         // Post functions
+        function handleImageSelection(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                selectedFile = null;
+                document.getElementById('imagePreview').classList.add('hidden');
+                return;
+            }
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.getElementById('imagePreview');
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function uploadImage(file) {
+            if (!file) return null;
+
+            const fileName = `${currentUser.id}/${Date.now()}-${file.name}`;
+            const { data, error } = await supabase.storage
+                .from('post-images')
+                .upload(fileName, file);
+
+            if (error) {
+                console.error('Error uploading image:', error);
+                showNotification('Gagal mengunggah gambar: ' + error.message, 'error');
+                return null;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('post-images')
+                .getPublicUrl(data.path);
+
+            return publicUrl;
+        }
+
         async function createPost() {
             if (!currentUser) {
                 toggleAuth();
@@ -1198,18 +1264,25 @@
             }
             
             const content = document.getElementById('postContent').value.trim();
-            if (!content) {
-                showNotification('Mohon tulis zen Anda terlebih dahulu', 'error');
+            if (!content && !selectedFile) {
+                showNotification('Mohon tulis zen atau pilih gambar', 'error');
                 return;
             }
             
             try {
+                let imageUrl = null;
+                if (selectedFile) {
+                    imageUrl = await uploadImage(selectedFile);
+                    if (!imageUrl) return; // Upload failed
+                }
+
                 const { data, error } = await supabase
                     .from('posts')
                     .insert([
                         {
                             user_id: currentUser.id,
-                            content: content
+                            content: content,
+                            image_url: imageUrl
                         }
                     ])
                     .select()
@@ -1217,7 +1290,14 @@
                 
                 if (error) throw error;
                 
+                // Reset form
                 document.getElementById('postContent').value = '';
+                document.getElementById('imageUpload').value = '';
+                selectedFile = null;
+                const preview = document.getElementById('imagePreview');
+                preview.src = '';
+                preview.classList.add('hidden');
+
                 await loadPosts();
                 showNotification('Zen Anda telah dibagikan! ✨');
             } catch (error) {
@@ -1289,6 +1369,11 @@
                             </button>
                         </div>
                         <p class="post-content">${post.content}</p>
+                        ${
+                            post.image_url ?
+                            `<img src="${post.image_url}" alt="Post image" style="width: 100%; border-radius: 0.75rem; margin-top: 1rem; cursor: pointer;" onclick="showImageDetail('${post.image_url}')">`
+                            : ''
+                        }
                         <div class="post-footer">
                             <button onclick="showComments('${post.id}')" class="post-action">
                                 <i class="far fa-comment action-icon"></i>
@@ -1392,6 +1477,39 @@
 
         function showSearch() {
             // Show search functionality
+        }
+
+        function createAvatarPlaceholder(name) {
+            const getInitials = (name) => {
+                const names = name.split(' ');
+                let initials = names[0].substring(0, 1).toUpperCase();
+                if (names.length > 1) {
+                    initials += names[names.length - 1].substring(0, 1).toUpperCase();
+                }
+                return initials;
+            };
+
+            const initials = getInitials(name);
+            const width = 200;
+            const height = 200;
+            const backgroundColor = `
+                <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:rgb(102,126,234);stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:rgb(118,75,162);stop-opacity:1" />
+                </linearGradient>
+            `;
+
+            const svg = `
+                <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+                    <defs>${backgroundColor}</defs>
+                    <rect width="100%" height="100%" fill="url(#grad1)"/>
+                    <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="80" font-family="Arial, sans-serif" font-weight="bold">
+                        ${initials}
+                    </text>
+                </svg>
+            `;
+
+            return `data:image/svg+xml;base64,${btoa(svg)}`;
         }
 
         // Utility functions
@@ -1518,6 +1636,11 @@
                                 </div>
                             </div>
                             <p class="post-content">${post.content}</p>
+                            ${
+                                post.image_url ?
+                                `<img src="${post.image_url}" alt="Post image" style="width: 100%; border-radius: 0.75rem; margin-top: 1rem;">`
+                                : ''
+                            }
                             <div class="post-footer">
                                 <button class="post-action">
                                     <i class="far fa-comment action-icon"></i>
@@ -1543,7 +1666,7 @@
                     <h3 class="section-title">Komentar Zen</h3>
                     <div class="zen-card">
                         <div class="post-form">
-                            <img src="${currentUser ? 'https://picsum.photos/seed/currentuser/50/50' : 'https://picsum.photos/seed/guest/50/50'}" alt="User" class="post-avatar">
+                            <img src="${currentUser ? document.getElementById('currentUserAvatar').src : createAvatarPlaceholder('?')}" alt="User" class="post-avatar">
                             <div class="post-input-container">
                                 <textarea placeholder="Tulis komentar zen..." class="post-textarea" rows="3"></textarea>
                                 <button class="zen-button" style="margin-top: 0.75rem;">
@@ -1560,6 +1683,15 @@
 
         function closePostDetail() {
             document.getElementById('postDetailModal').classList.remove('active');
+        }
+
+        function showImageDetail(imageUrl) {
+            document.getElementById('imageDetailContent').src = imageUrl;
+            document.getElementById('imageDetailModal').classList.add('active');
+        }
+
+        function closeImageDetail() {
+            document.getElementById('imageDetailModal').classList.remove('active');
         }
 
         // Real-time subscriptions
