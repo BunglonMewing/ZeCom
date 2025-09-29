@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="manifest" href="/site.webmanifest">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -956,41 +957,41 @@
             </div>
             
             <!-- Login Form -->
-            <div id="loginForm">
+            <form id="loginForm" onsubmit="event.preventDefault(); login();">
                 <h3 class="form-title">Masuk ke ZenCom</h3>
-                <input type="email" id="loginEmail" placeholder="Email" class="form-input">
-                <input type="password" id="loginPassword" placeholder="Password" class="form-input">
-                <button onclick="login()" class="zen-button" style="width: 100%;">
+                <input type="email" id="loginEmail" placeholder="Email" class="form-input" autocomplete="email">
+                <input type="password" id="loginPassword" placeholder="Password" class="form-input" autocomplete="current-password">
+                <button type="submit" class="zen-button" style="width: 100%;">
                     Masuk
                 </button>
-                <button onclick="loginWithGitHub()" class="zen-button" style="width: 100%; margin-top: 0.5rem; background: #333;">
+                <button onclick="loginWithGitHub()" type="button" class="zen-button" style="width: 100%; margin-top: 0.5rem; background: #333;">
                     <i class="fab fa-github"></i> Masuk dengan GitHub
                 </button>
                 <p class="form-link">
                     Belum punya akun? <a href="#" onclick="showRegister()">Daftar</a>
                 </p>
-            </div>
+            </form>
             
             <!-- Register Form -->
-            <div id="registerForm" class="hidden">
+            <form id="registerForm" class="hidden" onsubmit="event.preventDefault(); register();">
                 <h3 class="form-title">Buat akun ZenCom</h3>
-                <input type="text" id="registerName" placeholder="Nama Lengkap" class="form-input">
-                <input type="text" id="registerUsername" placeholder="Username" class="form-input">
-                <input type="email" id="registerEmail" placeholder="Email" class="form-input">
-                <input type="password" id="registerPassword" placeholder="Password" class="form-input">
+                <input type="text" id="registerName" placeholder="Nama Lengkap" class="form-input" autocomplete="name">
+                <input type="text" id="registerUsername" placeholder="Username" class="form-input" autocomplete="username">
+                <input type="email" id="registerEmail" placeholder="Email" class="form-input" autocomplete="email">
+                <input type="password" id="registerPassword" placeholder="Password" class="form-input" autocomplete="new-password">
                 <div style="display: flex; align-items: center; margin-bottom: 1rem; gap: 0.5rem;">
                     <input type="checkbox" id="termsCheckbox" style="width: 1rem; height: 1rem;">
                     <label for="termsCheckbox" style="font-size: 0.875rem; color: #4b5563;">
                         Saya setuju dengan <a href="#" onclick="event.preventDefault(); toggleTermsModal()" class="form-link" style="display: inline; text-decoration: underline; margin: 0; padding: 0;">Syarat dan Ketentuan</a>
                     </label>
                 </div>
-                <button onclick="register()" class="zen-button" style="width: 100%;">
+                <button type="submit" class="zen-button" style="width: 100%;">
                     Daftar
                 </button>
                 <p class="form-link">
                     Sudah punya akun? <a href="#" onclick="showLogin()">Masuk</a>
                 </p>
-            </div>
+            </form>
         </div>
     </div>
 
