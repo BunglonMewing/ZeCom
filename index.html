@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ZenCom adalah web komunitas yang Berfokus Membagikan Sticker Meme, Atau Foto apapun, AYO POSTING DI ZENCOM!...">
     <title>ZenCom - Komunitas Zen</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -470,6 +471,19 @@
             font-size: 0.875rem;
         }
 
+        .share-option {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .share-option:hover {
+            background-color: #f3f4f6;
+        }
+
         /* Right Sidebar */
         .right-sidebar {
             width: 20rem;
@@ -903,7 +917,7 @@
             <div class="search-box">
                 <div class="search-input">
                     <i class="fas fa-search text-gray-500"></i>
-                    <input type="text" placeholder="Cari di ZenCom">
+                    <input type="text" id="searchInput" onkeyup="handleSearch()" placeholder="Cari di ZenCom">
                 </div>
             </div>
 
@@ -963,6 +977,12 @@
                 <input type="text" id="registerUsername" placeholder="Username" class="form-input">
                 <input type="email" id="registerEmail" placeholder="Email" class="form-input">
                 <input type="password" id="registerPassword" placeholder="Password" class="form-input">
+                <div style="display: flex; align-items: center; margin-bottom: 1rem; gap: 0.5rem;">
+                    <input type="checkbox" id="termsCheckbox" style="width: 1rem; height: 1rem;">
+                    <label for="termsCheckbox" style="font-size: 0.875rem; color: #4b5563;">
+                        Saya setuju dengan <a href="#" onclick="event.preventDefault(); toggleTermsModal()" class="form-link" style="display: inline; text-decoration: underline; margin: 0; padding: 0;">Syarat dan Ketentuan</a>
+                    </label>
+                </div>
                 <button onclick="register()" class="zen-button" style="width: 100%;">
                     Daftar
                 </button>
@@ -1002,6 +1022,79 @@
                 <i class="fas fa-check"></i>
             </div>
             <p id="notificationText" class="notification-text"></p>
+        </div>
+    </div>
+
+    <!-- Terms and Conditions Modal -->
+    <div id="termsModal" class="modal">
+        <div class="modal-content" style="max-width: 48rem; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 class="modal-logo-text">Syarat dan Ketentuan</h2>
+                <button onclick="toggleTermsModal()" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="terms-content" style="font-size: 0.875rem; color: #374151; line-height: 1.6;">
+                <p><strong>Terakhir diperbarui: 29 September 2025</strong></p>
+                <br>
+                <p>Selamat datang di ZenCom. Terima kasih telah menggunakan layanan kami. Dokumen ini berisi syarat dan ketentuan yang mengatur penggunaan situs dan layanan ZenCom (“kami”, “kita”, atau “platform”). Dengan mengakses atau menggunakan situs https://zencom.netlify.app, Anda (“Pengguna”) dianggap telah membaca, memahami, dan menyetujui seluruh ketentuan yang tercantum di bawah ini.</p>
+                <p>Apabila Anda tidak menyetujui sebagian atau seluruh ketentuan dalam dokumen ini, mohon untuk tidak menggunakan layanan ZenCom.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">1. Definisi</h4>
+                <p>1.1. <strong>ZenCom</strong> adalah platform komunitas online yang disediakan melalui situs https://zencom.netlify.app.</p>
+                <p>1.2. <strong>Pengguna</strong> adalah setiap individu yang mengakses, menggunakan, atau membuat akun di ZenCom.</p>
+                <p>1.3. <strong>Konten</strong> mencakup seluruh materi yang diunggah atau dipublikasikan oleh Pengguna, termasuk teks, gambar, tautan, dan bentuk lainnya.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">2. Ketentuan Akun Pengguna</h4>
+                <p>2.1. Pengguna dapat membuat akun menggunakan email atau akun GitHub.</p>
+                <p>2.2. Pengguna bertanggung jawab penuh terhadap keamanan akun, termasuk kerahasiaan kata sandi dan informasi login.</p>
+                <p>2.3. ZenCom tidak bertanggung jawab atas penyalahgunaan akun akibat kelalaian Pengguna.</p>
+                <p>2.4. Dilarang membuat akun palsu, meniru identitas orang lain, atau menggunakan informasi yang tidak benar.</p>
+                <p>2.5. ZenCom berhak menangguhkan atau menghapus akun yang melanggar ketentuan ini tanpa pemberitahuan terlebih dahulu.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">3. Ketentuan Penggunaan</h4>
+                <p>3.1. Pengguna wajib menggunakan layanan ZenCom sesuai dengan ketentuan hukum yang berlaku di Republik Indonesia.</p>
+                <p>3.2. Pengguna dilarang mengunggah, memposting, atau membagikan konten yang:</p>
+                <ul style="list-style-type: disc; margin-left: 1.5rem;">
+                    <li>Mengandung unsur pornografi, kekerasan, atau ujaran kebencian;</li>
+                    <li>Melanggar hak cipta, merek dagang, atau hak kekayaan intelektual pihak lain;</li>
+                    <li>Menyesatkan, bersifat fitnah, atau mengandung informasi palsu (hoaks);</li>
+                    <li>Mengandung unsur diskriminatif terhadap suku, agama, ras, atau golongan tertentu.</li>
+                </ul>
+                <p>3.3. ZenCom berhak menghapus, memblokir, atau menonaktifkan akses terhadap konten yang dianggap melanggar ketentuan tanpa pemberitahuan.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">4. Kepemilikan dan Penggunaan Konten</h4>
+                <p>4.1. Seluruh konten yang diunggah oleh Pengguna tetap menjadi hak milik Pengguna.</p>
+                <p>4.2. Dengan mengunggah konten ke ZenCom, Pengguna memberikan lisensi non-eksklusif kepada ZenCom untuk menampilkan, menyimpan, dan mendistribusikan konten tersebut di dalam platform.</p>
+                <p>4.3. ZenCom tidak akan menjual atau mendistribusikan konten Pengguna kepada pihak ketiga tanpa izin.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">5. Tanggung Jawab Pengguna</h4>
+                <p>5.1. Pengguna bertanggung jawab penuh atas konten yang dipublikasikan melalui akun miliknya.</p>
+                <p>5.2. ZenCom tidak bertanggung jawab atas setiap klaim, pelanggaran, atau kerugian yang timbul akibat aktivitas Pengguna.</p>
+                <p>5.3. Pengguna wajib menjaga etika dan kesopanan dalam berinteraksi dengan pengguna lain di platform.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">6. Batasan Tanggung Jawab</h4>
+                <p>6.1. Layanan ZenCom disediakan dalam kondisi “sebagaimana adanya” (as is) tanpa jaminan apa pun, baik tersurat maupun tersirat.</p>
+                <p>6.2. ZenCom tidak menjamin bahwa layanan akan selalu tersedia, bebas gangguan, atau bebas dari kesalahan teknis.</p>
+                <p>6.3. ZenCom tidak bertanggung jawab atas kehilangan data, gangguan akses, atau kerugian yang timbul akibat penggunaan layanan.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">7. Perubahan Layanan</h4>
+                <p>ZenCom berhak, kapan pun dan dengan alasan apa pun, untuk:</p>
+                <ul style="list-style-type: disc; margin-left: 1.5rem;">
+                    <li>Mengubah, menangguhkan, atau menghentikan sebagian atau seluruh layanan;</li>
+                    <li>Melakukan pembaruan terhadap fitur, tampilan, maupun sistem keamanan;</li>
+                    <li>Mengubah Syarat dan Ketentuan ini sesuai kebutuhan operasional.</li>
+                </ul>
+                <p>Perubahan akan berlaku sejak tanggal pembaruan dokumen ini diunggah pada situs resmi ZenCom.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">8. Hukum yang Berlaku</h4>
+                <p>Syarat dan Ketentuan ini diatur dan ditafsirkan berdasarkan hukum yang berlaku di Republik Indonesia. Setiap perselisihan yang timbul akan diselesaikan secara musyawarah atau melalui mekanisme hukum sesuai peraturan perundang-undangan yang berlaku.</p>
+                <br>
+                <h4 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">9. Kontak</h4>
+                <p>Untuk pertanyaan, saran, atau laporan pelanggaran, Pengguna dapat menghubungi kami melalui: 📩 bunglonsigma@gmail.com</p>
+                <br>
+                <p>© 2025 ZenCom. Seluruh hak cipta dilindungi undang-undang.</p>
+            </div>
         </div>
     </div>
 
@@ -1055,6 +1148,11 @@
             modal.classList.toggle('active');
         }
 
+        function toggleTermsModal() {
+            const modal = document.getElementById('termsModal');
+            modal.classList.toggle('active');
+        }
+
         function showLogin() {
             document.getElementById('loginForm').classList.remove('hidden');
             document.getElementById('registerForm').classList.add('hidden');
@@ -1105,6 +1203,12 @@
             const username = document.getElementById('registerUsername').value;
             const email = document.getElementById('registerEmail').value;
             const password = document.getElementById('registerPassword').value;
+            const termsCheckbox = document.getElementById('termsCheckbox');
+
+            if (!termsCheckbox.checked) {
+                showNotification('Anda harus menyetujui Syarat dan Ketentuan untuk mendaftar.', 'error');
+                return;
+            }
             
             if (!name || !username || !email || !password) {
                 showNotification('Mohon isi semua field', 'error');
@@ -1327,21 +1431,30 @@
             }
         }
 
-        function renderPosts() {
+        function renderPosts(postsToRender = posts) {
             const feed = document.getElementById('postsFeed');
             feed.innerHTML = '';
             
-            if (posts.length === 0) {
+            const searchInput = document.getElementById('searchInput');
+            const isSearching = searchInput && searchInput.value.length > 0;
+
+            if (postsToRender.length === 0) {
+                const message = isSearching
+                    ? 'Tidak ada hasil pencarian ditemukan. Coba kata kunci lain. 🧐'
+                    : 'Belum ada zen. Jadilah yang pertama berbagi! 🌸';
+
+                const icon = isSearching ? 'fa-search' : 'fa-spa';
+
                 feed.innerHTML = `
                     <div style="text-align: center; padding: 3rem 0;">
-                        <i class="fas fa-spa" style="font-size: 4rem; color: #d1d5db; margin-bottom: 1rem;"></i>
-                        <p style="color: #6b7280; font-size: 1.125rem;">Belum ada zen. Jadilah yang pertama berbagi! 🌸</p>
+                        <i class="fas ${icon}" style="font-size: 4rem; color: #d1d5db; margin-bottom: 1rem;"></i>
+                        <p style="color: #6b7280; font-size: 1.125rem;">${message}</p>
                     </div>
                 `;
                 return;
             }
             
-            posts.forEach(post => {
+            postsToRender.forEach(post => {
                 const postElement = createPostElement(post);
                 feed.appendChild(postElement);
             });
@@ -1350,6 +1463,7 @@
         function createPostElement(post) {
             const div = document.createElement('div');
             div.className = 'zen-card';
+            div.id = `post-${post.id}`; // Add unique ID to the post card
             
             const timeAgo = getTimeAgo(new Date(post.created_at));
             const isLiked = post.likes && post.likes.some(like => like.user_id === currentUser?.id);
@@ -1383,10 +1497,16 @@
                                 <i class="${isLiked ? 'fas' : 'far'} fa-heart action-icon"></i>
                                 <span class="action-count">${post.likes?.[0]?.count || 0}</span>
                             </button>
-                            <button class="post-action">
-                                <i class="fas fa-share action-icon"></i>
-                                <span class="action-count">Bagikan</span>
-                            </button>
+                            <div class="post-action" style="position: relative;">
+                                <button onclick="toggleShareMenu('${post.id}')" class="post-action" style="padding: 0; background: transparent;">
+                                    <i class="fas fa-share action-icon"></i>
+                                    <span class="action-count">Bagikan</span>
+                                </button>
+                                <div id="share-menu-${post.id}" class="hidden" style="position: absolute; bottom: 100%; left: 0; background: white; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10; width: 200px; overflow: hidden;">
+                                    ${post.image_url ? `<div class="share-option" onclick="downloadImage('${post.image_url}', 'zencom-post-${post.id}.jpg')"><i class="fas fa-download" style="margin-right: 0.5rem;"></i>Download foto</div>` : ''}
+                                    <div class="share-option" onclick="sharePostLink('${post.id}')"><i class="fas fa-link" style="margin-right: 0.5rem;"></i>Bagikan Tautan Postingan</div>
+                                </div>
+                            </div>
                             <button class="post-action">
                                 <i class="far fa-bookmark action-icon"></i>
                                 <span class="action-count">Simpan</span>
@@ -1438,6 +1558,46 @@
             }
         }
 
+        function toggleShareMenu(postId) {
+            const menu = document.getElementById(`share-menu-${postId}`);
+            if (menu) {
+                menu.classList.toggle('hidden');
+            }
+        }
+
+        async function downloadImage(imageUrl, fileName) {
+            try {
+                // To bypass CORS issues, we fetch the image via a server-side proxy if needed,
+                // but for Supabase Storage, direct fetch should work if configured correctly.
+                // Let's try a direct fetch first.
+                const response = await fetch(imageUrl);
+                if (!response.ok) throw new Error('Network response was not ok.');
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                showNotification('Gambar berhasil diunduh! 🖼️');
+            } catch (error) {
+                console.error('Download error:', error);
+                showNotification('Gagal mengunduh gambar. Coba klik kanan dan "Simpan Gambar Sebagai...".', 'error');
+            }
+        }
+
+        function sharePostLink(postId) {
+            const url = `${window.location.origin}${window.location.pathname}#post-${postId}`;
+            navigator.clipboard.writeText(url).then(() => {
+                showNotification('Tautan postingan disalin ke clipboard! 🔗');
+            }, (err) => {
+                console.error('Could not copy text: ', err);
+                showNotification('Gagal menyalin tautan.', 'error');
+            });
+        }
+
         // Navigation functions
         function showFeed() {
             document.getElementById('feedTitle').textContent = 'Beranda';
@@ -1476,7 +1636,28 @@
         }
 
         function showSearch() {
-            // Show search functionality
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.focus();
+            }
+        }
+
+        function handleSearch() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+
+            if (query.length === 0) {
+                renderPosts(posts);
+                return;
+            }
+
+            const filteredPosts = posts.filter(post => {
+                const contentMatch = post.content.toLowerCase().includes(query);
+                const usernameMatch = post.profiles.username.toLowerCase().includes(query);
+                const nameMatch = post.profiles.name.toLowerCase().includes(query);
+                return contentMatch || usernameMatch || nameMatch;
+            });
+
+            renderPosts(filteredPosts);
         }
 
         function createAvatarPlaceholder(name) {
