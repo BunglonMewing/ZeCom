@@ -5,6 +5,18 @@
     <link rel="manifest" href="/site.webmanifest">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+        style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+        img-src 'self' data: https://picsum.photos https://ovirqmxklhhbmxqbbxsz.supabase.co;
+        font-src 'self' https://cdnjs.cloudflare.com;
+        connect-src 'self' https://ovirqmxklhhbmxqbbxsz.supabase.co wss://ovirqmxklhhbmxqbbxsz.supabase.co;
+        frame-src 'self';
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+    ">
     <meta name="description" content="ZenCom adalah web komunitas yang Berfokus Membagikan Sticker Meme, Atau Foto apapun, AYO POSTING DI ZENCOM!...">
     <title>ZenCom - Komunitas Zen</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7"></script>
@@ -428,14 +440,37 @@
         .post-content {
             color: #374151;
             font-size: 1.125rem;
-            line-height: 1.5;
+            line-height: 1.6;
             margin-bottom: 1rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .post-image-container {
+            margin-top: 1rem;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .post-image {
+            width: 100%;
+            height: auto;
+            display: block;
+            transition: transform 0.3s ease;
+        }
+
+        .post-image-container:hover .post-image {
+            transform: scale(1.05);
         }
 
         .post-footer {
             display: flex;
-            justify-content: space-between;
+            justify-content: space-around;
             align-items: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
         }
 
         .post-action {
@@ -885,11 +920,13 @@
                     <img id="currentUserAvatar" src="https://picsum.photos/seed/currentuser/60/60" alt="User" class="post-avatar">
                     <div class="post-input-container">
                         <textarea id="postContent" placeholder="Bagikan zen Anda..." class="post-textarea" rows="4"></textarea>
-                            <input type="file" id="imageUpload" class="hidden" accept="image/*" onchange="handleImageSelection(event)">
-                            <img id="imagePreview" src="" alt="Pratinjau Gambar" class="hidden" style="max-width: 100%; border-radius: 0.75rem; margin-top: 1rem;">
+                        <input type="file" id="imageUpload" class="hidden" accept="image/*" onchange="handleImageSelection(event)">
+                        <div id="imagePreviewContainer" class="post-image-container hidden" style="margin-top: 1rem;">
+                            <img id="imagePreview" src="" alt="Pratinjau Gambar" class="post-image">
+                        </div>
                         <div class="post-actions">
                             <div class="post-tools">
-                                    <button id="imageUploadBtn" class="tool-button" onclick="document.getElementById('imageUpload').click()">
+                                <button id="imageUploadBtn" class="tool-button" onclick="document.getElementById('imageUpload').click()">
                                     <i class="fas fa-image tool-icon"></i>
                                 </button>
                                 <button class="tool-button">
@@ -1327,17 +1364,20 @@
         // Post functions
         function handleImageSelection(event) {
             const file = event.target.files[0];
+            const previewContainer = document.getElementById('imagePreviewContainer');
+            const preview = document.getElementById('imagePreview');
+
             if (!file) {
                 selectedFile = null;
-                document.getElementById('imagePreview').classList.add('hidden');
+                previewContainer.classList.add('hidden');
+                preview.src = '';
                 return;
             }
             selectedFile = file;
             const reader = new FileReader();
             reader.onload = (e) => {
-                const preview = document.getElementById('imagePreview');
                 preview.src = e.target.result;
-                preview.classList.remove('hidden');
+                previewContainer.classList.remove('hidden');
             };
             reader.readAsDataURL(file);
         }
@@ -1400,9 +1440,10 @@
                 document.getElementById('postContent').value = '';
                 document.getElementById('imageUpload').value = '';
                 selectedFile = null;
+                const previewContainer = document.getElementById('imagePreviewContainer');
                 const preview = document.getElementById('imagePreview');
                 preview.src = '';
-                preview.classList.add('hidden');
+                previewContainer.classList.add('hidden');
 
                 await loadPosts();
                 showNotification('Zen Anda telah dibagikan! ✨');
@@ -1487,7 +1528,9 @@
                         <p class="post-content">${post.content}</p>
                         ${
                             post.image_url ?
-                            `<img src="${post.image_url}" alt="Post image" style="width: 100%; border-radius: 0.75rem; margin-top: 1rem; cursor: pointer;" onclick="showImageDetail('${post.image_url}')">`
+                            `<div class="post-image-container" onclick="showImageDetail('${post.image_url}')">
+                                <img src="${post.image_url}" alt="Post image" class="post-image">
+                            </div>`
                             : ''
                         }
                         <div class="post-footer">
