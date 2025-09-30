@@ -790,6 +790,133 @@
                 width: 100%;
             }
         }
+
+        @media (max-width: 767px) {
+            .header-content {
+                height: 3.5rem;
+            }
+
+            .logo-text {
+                font-size: 1.25rem;
+            }
+
+            .main-container {
+                margin-top: 3.5rem;
+                padding: 0 0.5rem;
+            }
+
+            .main-content {
+                padding: 1rem 0.5rem;
+            }
+
+            .post-form {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .post-avatar {
+                width: 2.5rem;
+                height: 2.5rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .post-meta-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .post-user-info {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+
+            .post-time {
+                margin-top: 0.25rem;
+                font-size: 0.75rem;
+            }
+
+            .post-content {
+                font-size: 1rem;
+            }
+
+            .post-footer {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                justify-content: space-around;
+            }
+
+            .post-action {
+                padding: 0.5rem;
+            }
+
+            .zen-button {
+                padding: 0.6rem 1.2rem;
+                font-size: 0.8rem;
+            }
+
+            .modal-content {
+                padding: 1.5rem;
+            }
+
+            /* Search Modal */
+            .search-modal .modal-content {
+                max-width: 48rem;
+                height: 80vh;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .search-header {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                border-bottom: 1px solid #e5e7eb;
+                padding-bottom: 1rem;
+            }
+
+            .search-input-modal {
+                flex: 1;
+                border: none;
+                outline: none;
+                font-size: 1.125rem;
+                font-family: inherit;
+            }
+
+            .search-results {
+                flex: 1;
+                overflow-y: auto;
+                padding-top: 1rem;
+            }
+
+            .search-result-item {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                padding: 0.75rem;
+                border-radius: 0.75rem;
+                cursor: pointer;
+                transition: background-color 0.2s ease;
+            }
+
+            .search-result-item:hover {
+                background-color: #f3f4f6;
+            }
+
+            .search-result-avatar {
+                width: 3rem;
+                height: 3rem;
+                border-radius: 50%;
+            }
+
+            .search-result-details h5 {
+                font-weight: 600;
+            }
+
+            .search-result-details p {
+                color: #6b7280;
+                font-size: 0.875rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -919,7 +1046,7 @@
             <div class="search-box">
                 <div class="search-input">
                     <i class="fas fa-search text-gray-500"></i>
-                    <input type="text" id="searchInput" onkeyup="handleSearch()" placeholder="Cari di ZenCom">
+                    <input type="text" id="searchInput" placeholder="Cari di ZenCom" onfocus="showSearch()">
                 </div>
             </div>
 
@@ -1014,6 +1141,22 @@
     <div id="imageDetailModal" class="modal" onclick="closeImageDetail()">
         <div class="modal-content" style="max-width: 90vw; max-height: 90vh; padding: 0; background: transparent;">
             <img id="imageDetailContent" src="" style="width: auto; height: auto; max-width: 100%; max-height: 100%; border-radius: 1.5rem;">
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div id="searchModal" class="modal search-modal">
+        <div class="modal-content">
+            <div class="search-header">
+                <i class="fas fa-search text-gray-500"></i>
+                <input type="text" id="searchInputModal" oninput="handleSearch()" placeholder="Cari pengguna atau zen..." class="search-input-modal">
+                <button onclick="closeSearch()" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="searchResults" class="search-results">
+                <!-- Search results will be dynamically inserted here -->
+            </div>
         </div>
     </div>
 
@@ -1116,6 +1259,7 @@
         let currentUser = null;
         let posts = [];
         let selectedFile = null;
+        let searchTimeout;
         let trendingTopics = [
             { topic: '#ZenCom', count: 15420 },
             { topic: '#Mindfulness', count: 8932 },
@@ -1638,28 +1782,118 @@
         }
 
         function showSearch() {
-            const searchInput = document.getElementById('searchInput');
-            if (searchInput) {
-                searchInput.focus();
-            }
+            document.getElementById('searchModal').classList.add('active');
+            document.getElementById('searchInputModal').focus();
         }
 
-        function handleSearch() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
+        function closeSearch() {
+            document.getElementById('searchModal').classList.remove('active');
+        }
+
+        async function handleSearch() {
+            clearTimeout(searchTimeout);
+            const query = document.getElementById('searchInputModal').value.trim();
+            const searchResultsContainer = document.getElementById('searchResults');
 
             if (query.length === 0) {
-                renderPosts(posts);
+                searchResultsContainer.innerHTML = '';
                 return;
             }
 
-            const filteredPosts = posts.filter(post => {
-                const contentMatch = post.content.toLowerCase().includes(query);
-                const usernameMatch = post.profiles.username.toLowerCase().includes(query);
-                const nameMatch = post.profiles.name.toLowerCase().includes(query);
-                return contentMatch || usernameMatch || nameMatch;
-            });
+            if (query.length < 2) {
+                searchResultsContainer.innerHTML = '<p style="text-align:center; color:#6b7280; padding: 2rem 0;">Ketik minimal 2 karakter untuk memulai pencarian...</p>';
+                return;
+            }
 
-            renderPosts(filteredPosts);
+            searchResultsContainer.innerHTML = '<p style="text-align:center; color:#6b7280; padding: 2rem 0;">Mencari...</p>';
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const [usersRes, postsRes] = await Promise.all([
+                        supabase
+                            .from('profiles')
+                            .select('*')
+                            .or(`name.ilike.%${query}%,username.ilike.%${query}%`)
+                            .limit(5),
+                        supabase
+                            .from('posts')
+                            .select('*, profiles!posts_user_id_fkey (*), likes(count), comments(count)')
+                            .ilike('content', `%${query}%`)
+                            .order('created_at', { ascending: false })
+                            .limit(10)
+                    ]);
+
+                    if (usersRes.error) throw usersRes.error;
+                    if (postsRes.error) throw postsRes.error;
+
+                    renderSearchResults(usersRes.data, postsRes.data);
+                } catch (error) {
+                    console.error('Search error:', error);
+                    searchResultsContainer.innerHTML = '<p style="text-align:center; color:red; padding: 2rem 0;">Terjadi kesalahan saat mencari.</p>';
+                }
+            }, 300);
+        }
+
+        function renderSearchResults(users, posts) {
+            const resultsContainer = document.getElementById('searchResults');
+            resultsContainer.innerHTML = '';
+
+            if (users.length === 0 && posts.length === 0) {
+                resultsContainer.innerHTML = '<p style="text-align:center; color:#6b7280; padding: 2rem 0;">Tidak ada hasil yang ditemukan. Coba kata kunci lain. 🧐</p>';
+                return;
+            }
+
+            if (users.length > 0) {
+                const usersHeader = document.createElement('h4');
+                usersHeader.className = 'section-title';
+                usersHeader.textContent = 'Pengguna';
+                usersHeader.style.padding = '0 0.75rem';
+                resultsContainer.appendChild(usersHeader);
+
+                users.forEach(user => {
+                    const userElement = document.createElement('div');
+                    userElement.className = 'search-result-item';
+                    userElement.onclick = () => {
+                        showUserProfile(user.id);
+                        closeSearch();
+                    };
+                    userElement.innerHTML = `
+                        <img src="${user.avatar_url}" alt="${user.name}" class="search-result-avatar">
+                        <div class="search-result-details">
+                            <h5>${user.name}</h5>
+                            <p>@${user.username}</p>
+                        </div>
+                    `;
+                    resultsContainer.appendChild(userElement);
+                });
+            }
+
+            if (posts.length > 0) {
+                const postsHeader = document.createElement('h4');
+                postsHeader.className = 'section-title';
+                postsHeader.textContent = 'Zen';
+                postsHeader.style.padding = '0 0.75rem';
+                postsHeader.style.marginTop = '1rem';
+                resultsContainer.appendChild(postsHeader);
+
+                posts.forEach(post => {
+                    const postElement = document.createElement('div');
+                    postElement.className = 'search-result-item';
+                    postElement.onclick = () => {
+                        showPostDetail(post.id);
+                        closeSearch();
+                    };
+                    const postContent = post.content.length > 100 ? post.content.substring(0, 100) + '...' : post.content;
+                    postElement.innerHTML = `
+                        <img src="${post.profiles.avatar_url}" alt="${post.profiles.name}" class="search-result-avatar">
+                        <div class="search-result-details">
+                            <h5>${post.profiles.name} <span style="font-weight: normal; color: #6b7280;">@${post.profiles.username}</span></h5>
+                            <p>${postContent}</p>
+                        </div>
+                    `;
+                    resultsContainer.appendChild(postElement);
+                });
+            }
         }
 
         function createAvatarPlaceholder(name) {
