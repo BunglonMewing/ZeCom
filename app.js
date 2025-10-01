@@ -25,7 +25,21 @@
         // Initialize app
         document.addEventListener('DOMContentLoaded', async () => {
             await checkAuth();
-            await loadPosts();
+
+            // Check if we are loading a specific post
+            const urlParams = new URLSearchParams(window.location.search);
+            const postId = urlParams.get('post');
+
+            if (postId) {
+                // If a post ID is present, load only that post first and show the detail view.
+                // The full feed will load in the background.
+                await showPostFromQuery(postId);
+                loadPosts(); // Load the rest of the posts in the background
+            } else {
+                // If no specific post, load the main feed.
+                await loadPosts();
+            }
+
             loadTrendingTopics();
             loadSuggestedUsers();
 
@@ -444,36 +458,69 @@
                 return;
             }
 
-            try {
-                // Check if already liked
-                const { data: existingLike } = await supabase
-                    .from('likes')
-                    .select('*')
-                    .eq('post_id', postId)
-                    .eq('user_id', currentUser.id)
-                    .single();
+            const postCard = document.getElementById(`post-${postId}`);
+            if (!postCard) return;
 
-                if (existingLike) {
-                    // Unlike
-                    await supabase
+            const likeButton = postCard.querySelector('button[onclick^="toggleLike"]');
+            const likeIcon = likeButton.querySelector('i.fa-heart');
+            const likeCountSpan = likeButton.querySelector('.action-count');
+
+            if (!likeButton || !likeIcon || !likeCountSpan) {
+                console.error('Like elements not found for post', postId);
+                return;
+            }
+
+            // --- Optimistic UI Update ---
+            const isCurrentlyLiked = likeButton.classList.contains('liked');
+            const originalLikeCount = parseInt(likeCountSpan.textContent, 10);
+
+            likeButton.classList.toggle('liked');
+            likeIcon.classList.toggle('fas');
+            likeIcon.classList.toggle('far');
+            likeCountSpan.textContent = isCurrentlyLiked ? originalLikeCount - 1 : originalLikeCount + 1;
+            // --- End of Optimistic UI Update ---
+
+            try {
+                // Find the post in the local state to update it too.
+                // This prevents UI flicker if a re-render happens before the realtime event arrives.
+                const postIndex = posts.findIndex(p => p.id === postId);
+
+                if (isCurrentlyLiked) {
+                    // UNLIKE
+                    const { error } = await supabase
                         .from('likes')
                         .delete()
-                        .eq('id', existingLike.id);
+                        .match({ post_id: postId, user_id: currentUser.id });
+                    if (error) throw error;
+
+                    if (postIndex !== -1) {
+                        const likeIndex = posts[postIndex].likes.findIndex(l => l.user_id === currentUser.id);
+                        if (likeIndex !== -1) posts[postIndex].likes.splice(likeIndex, 1);
+                    }
+
                 } else {
-                    // Like
-                    await supabase
+                    // LIKE
+                    const { data, error } = await supabase
                         .from('likes')
-                        .insert([
-                            {
-                                post_id: postId,
-                                user_id: currentUser.id
-                            }
-                        ]);
+                        .insert({ post_id: postId, user_id: currentUser.id })
+                        .select()
+                        .single();
+                    if (error) throw error;
+
+                    if (postIndex !== -1) {
+                        posts[postIndex].likes.push(data);
+                    }
                 }
 
-                await loadPosts();
             } catch (error) {
                 showNotification('Gagal menyukai zen: ' + error.message, 'error');
+
+                // --- Revert UI on Failure ---
+                likeButton.classList.toggle('liked');
+                likeIcon.classList.toggle('fas');
+                likeIcon.classList.toggle('far');
+                likeCountSpan.textContent = originalLikeCount;
+                // --- End of Revert ---
             }
         }
 
@@ -507,14 +554,38 @@
             }
         }
 
-        function sharePostLink(postId) {
-            const url = `${window.location.origin}${window.location.pathname}#post-${postId}`;
-            navigator.clipboard.writeText(url).then(() => {
-                showNotification('Tautan postingan disalin ke clipboard! 🔗');
-            }, (err) => {
-                console.error('Could not copy text: ', err);
-                showNotification('Gagal menyalin tautan.', 'error');
-            });
+        async function sharePostLink(postId) {
+            const post = posts.find(p => p.id === postId);
+            if (!post) return;
+
+            const url = `${window.location.origin}/?post=${postId}`;
+            const shareData = {
+                title: `Zen by ${post.profiles.name} on ZenCom`,
+                text: post.content,
+                url: url,
+            };
+
+            // Use Web Share API if available
+            if (navigator.share) {
+                try {
+                    await navigator.share(shareData);
+                    showNotification('Zen berhasil dibagikan! 🚀');
+                } catch (err) {
+                    // User cancelled the share action, do nothing.
+                    if (err.name !== 'AbortError') {
+                        console.error('Share API error:', err);
+                        showNotification('Gagal membagikan: ' + err.message, 'error');
+                    }
+                }
+            } else {
+                // Fallback to copying the link
+                navigator.clipboard.writeText(url).then(() => {
+                    showNotification('Tautan postingan disalin ke clipboard! 🔗');
+                }, (err) => {
+                    console.error('Could not copy text: ', err);
+                    showNotification('Gagal menyalin tautan.', 'error');
+                });
+            }
         }
 
         // Navigation functions
@@ -803,11 +874,100 @@
         }
 
         function showComments(postId) {
-            // Show comments for post
             showPostDetail(postId);
         }
 
-        function showPostDetail(postId) {
+        async function addComment(postId) {
+            if (!currentUser) {
+                toggleAuth();
+                return;
+            }
+
+            const contentEl = document.querySelector(`#postDetailContent textarea`);
+            const content = contentEl.value.trim();
+
+            if (!content) {
+                showNotification('Komentar tidak boleh kosong', 'error');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase
+                    .from('comments')
+                    .insert({
+                        post_id: postId,
+                        user_id: currentUser.id,
+                        content: content
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                contentEl.value = ''; // Clear textarea
+                showNotification('Komentar berhasil ditambahkan! 💬');
+                await loadComments(postId); // Refresh comments list
+                await updatePostInState(postId); // Update comment count on the main feed post
+            } catch (error) {
+                showNotification('Gagal menambahkan komentar: ' + error.message, 'error');
+            }
+        }
+
+        async function loadComments(postId) {
+            const commentsContainer = document.getElementById(`comments-list-${postId}`);
+            if (!commentsContainer) return;
+
+            commentsContainer.innerHTML = '<p style="text-align:center; color:#6b7280; padding: 1rem 0;">Memuat komentar...</p>';
+
+            try {
+                const { data: comments, error } = await supabase
+                    .from('comments')
+                    .select(`
+                        *,
+                        profiles (*)
+                    `)
+                    .eq('post_id', postId)
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+
+                if (comments.length === 0) {
+                    commentsContainer.innerHTML = '<p style="text-align:center; color:#6b7280; padding: 1rem 0;">Belum ada komentar. Jadilah yang pertama! ✍️</p>';
+                    return;
+                }
+
+                commentsContainer.innerHTML = ''; // Clear container
+                comments.forEach(comment => {
+                    const commentEl = document.createElement('div');
+                    commentEl.className = 'zen-card comment-card'; // Add a specific class for comment styling
+                    const verifiedBadge = getVerifiedBadge(comment.profiles.username);
+
+                    commentEl.innerHTML = `
+                        <div class="post-header">
+                            <img src="${comment.profiles.avatar_url}" alt="${comment.profiles.name}" class="post-avatar-large">
+                            <div class="post-meta">
+                                <div class="post-meta-header">
+                                    <div class="post-user-info">
+                                        <h4 class="post-username">${comment.profiles.name} ${verifiedBadge}</h4>
+                                        <span class="post-tag">@${comment.profiles.username}</span>
+                                        <span class="post-time">${getTimeAgo(new Date(comment.created_at))}</span>
+                                    </div>
+                                </div>
+                                <p class="post-content">${linkifyHashtags(comment.content)}</p>
+                            </div>
+                        </div>
+                    `;
+                    commentsContainer.appendChild(commentEl);
+                });
+
+            } catch (error) {
+                console.error("Error loading comments:", error);
+                commentsContainer.innerHTML = '<p style="text-align:center; color:red; padding: 1rem 0;">Gagal memuat komentar.</p>';
+            }
+        }
+
+
+        async function showPostDetail(postId) {
             const modal = document.getElementById('postDetailModal');
             const content = document.getElementById('postDetailContent');
 
@@ -815,40 +975,40 @@
             const post = posts.find(p => p.id === postId);
             if (!post) return;
 
+            const isLiked = post.likes && post.likes.some(like => like.user_id === currentUser?.id);
+
             content.innerHTML = `
-                <div class="zen-card">
-                    <div class="post-header">
+                <div class="zen-card" id="detail-post-${post.id}">
+                     <div class="post-header">
                         <img src="${post.profiles.avatar_url}" alt="${post.profiles.name}" class="post-avatar-large">
                         <div class="post-meta">
                             <div class="post-meta-header">
                                 <div class="post-user-info">
-                                    <h4 class="post-username">${post.profiles.name}</h4>
+                                    <h4 class="post-username">${post.profiles.name} ${getVerifiedBadge(post.profiles.username)}</h4>
                                     <span class="post-tag">@${post.profiles.username}</span>
                                     <span class="post-time">${getTimeAgo(new Date(post.created_at))}</span>
                                 </div>
                             </div>
-                            <p class="post-content">${post.content}</p>
+                            <p class="post-content">${linkifyHashtags(post.content)}</p>
                             ${
                                 post.image_url ?
-                                `<img src="${post.image_url}" alt="Post image" style="width: 100%; border-radius: 0.75rem; margin-top: 1rem;">`
+                                `<img src="${post.image_url}" alt="Post image" style="width: 100%; border-radius: 0.75rem; margin-top: 1rem;" onclick="showImageDetail('${post.image_url}')">`
                                 : ''
                             }
                             <div class="post-footer">
-                                <button class="post-action">
+                                 <button onclick="showComments('${post.id}')" class="post-action">
                                     <i class="far fa-comment action-icon"></i>
                                     <span class="action-count">${post.comments?.[0]?.count || 0}</span>
                                 </button>
-                                <button class="post-action">
-                                    <i class="far fa-heart action-icon"></i>
-                                    <span class="action-count">${post.likes?.[0]?.count || 0}</span>
+                                <button onclick="toggleLike('${post.id}')" class="post-action ${isLiked ? 'liked' : ''}">
+                                    <i class="${isLiked ? 'fas' : 'far'} fa-heart action-icon"></i>
+                                    <span class="action-count">${post.likes.length || 0}</span>
                                 </button>
                                 <button class="post-action">
                                     <i class="fas fa-share action-icon"></i>
-                                    <span class="action-count">Bagikan</span>
                                 </button>
                                 <button class="post-action">
                                     <i class="far fa-bookmark action-icon"></i>
-                                    <span class="action-count">Simpan</span>
                                 </button>
                             </div>
                         </div>
@@ -856,21 +1016,31 @@
                 </div>
                 <div style="margin-top: 1.5rem;">
                     <h3 class="section-title">Komentar Zen</h3>
+                    ${currentUser ? `
                     <div class="zen-card">
                         <div class="post-form">
-                            <img src="${currentUser ? document.getElementById('currentUserAvatar').src : createAvatarPlaceholder('?')}" alt="User" class="post-avatar">
+                            <img src="${document.getElementById('currentUserAvatar').src}" alt="User" class="post-avatar">
                             <div class="post-input-container">
                                 <textarea placeholder="Tulis komentar zen..." class="post-textarea" rows="3"></textarea>
-                                <button class="zen-button" style="margin-top: 0.75rem;">
+                                <button class="zen-button" style="margin-top: 0.75rem;" onclick="addComment('${post.id}')">
                                     <i class="fas fa-paper-plane mr-2"></i>Kirim
                                 </button>
                             </div>
                         </div>
                     </div>
+                    ` : `
+                    <p style="text-align:center; color:#6b7280; padding: 1rem 0;">
+                        <a href="#" onclick="toggleAuth(); return false;" class="form-link" style="text-decoration: underline;">Masuk</a> untuk menulis komentar.
+                    </p>
+                    `}
+                    <div id="comments-list-${post.id}" class="comments-list-container">
+                        <!-- Comments will be loaded here -->
+                    </div>
                 </div>
             `;
 
             modal.classList.add('active');
+            await loadComments(postId);
         }
 
         function closePostDetail() {
@@ -886,6 +1056,75 @@
             document.getElementById('imageDetailModal').classList.remove('active');
         }
 
+        async function showPostFromQuery(postId) {
+            try {
+                const { data: post, error } = await supabase
+                    .from('posts')
+                    .select(`
+                        *,
+                        profiles!posts_user_id_fkey (*),
+                        likes (*),
+                        comments (count)
+                    `)
+                    .eq('id', postId)
+                    .single();
+
+                if (error) throw error;
+                if (!post) {
+                    showNotification('Post tidak ditemukan atau telah dihapus.', 'error');
+                    return;
+                }
+
+                // Add the post to the local state if it's not already there,
+                // so that showPostDetail can find it.
+                if (!posts.some(p => p.id === post.id)) {
+                    posts.unshift(post); // Add to the beginning
+                }
+
+                showPostDetail(post.id);
+
+            } catch (error) {
+                console.error('Error fetching shared post:', error);
+                showNotification('Gagal memuat post yang dibagikan.', 'error');
+            }
+        }
+
+        async function updatePostInState(postId) {
+            try {
+                const { data: updatedPost, error } = await supabase
+                    .from('posts')
+                    .select(`
+                        *,
+                        profiles!posts_user_id_fkey (*),
+                        likes (*),
+                        comments (count)
+                    `)
+                    .eq('id', postId)
+                    .single();
+
+                if (error) throw error;
+                if (!updatedPost) return; // Post might have been deleted
+
+                // Find the index of the post in the local 'posts' array
+                const postIndex = posts.findIndex(p => p.id === postId);
+                if (postIndex !== -1) {
+                    // Replace the old post data with the updated data
+                    posts[postIndex] = updatedPost;
+
+                    // Find the post element in the DOM
+                    const postElement = document.getElementById(`post-${postId}`);
+                    if (postElement) {
+                        // Create a new element with the updated data
+                        const newPostElement = createPostElement(updatedPost);
+                        // Replace the old element with the new one
+                        postElement.parentNode.replaceChild(newPostElement, postElement);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error updating post ${postId} in real-time:`, error);
+            }
+        }
+
         // Real-time subscriptions
         function setupRealtimeSubscriptions() {
             // Subscribe to new posts
@@ -896,11 +1135,36 @@
                 })
                 .subscribe();
 
-            // Subscribe to likes
+            // Subscribe to likes for real-time updates
             supabase
                 .channel('likes')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, payload => {
-                    loadPosts();
+                    // Instead of a full reload, find the affected post and update it.
+                    // This is more efficient and prevents the whole feed from re-rendering.
+                    const postId = payload.new?.post_id || payload.old?.post_id;
+                    if (postId) {
+                        updatePostInState(postId);
+                    }
+                })
+                .subscribe();
+
+            // Subscribe to comments for real-time updates
+            supabase
+                .channel('comments')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, payload => {
+                    const postId = payload.new?.post_id;
+                    if (postId) {
+                        // If the post detail modal is open, refresh the comments
+                        const modal = document.getElementById('postDetailModal');
+                        if (modal.classList.contains('active')) {
+                            const commentsList = document.getElementById(`comments-list-${postId}`);
+                            if (commentsList) {
+                                loadComments(postId);
+                            }
+                        }
+                        // Always update the post in the main feed (for comment count)
+                        updatePostInState(postId);
+                    }
                 })
                 .subscribe();
         }
