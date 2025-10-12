@@ -295,7 +295,7 @@
                     if (!imageUrl) return; // Upload failed
                 }
 
-                const { data, error } = await supabase
+                const { data: postData, error } = await supabase
                     .from('posts')
                     .insert([
                         {
@@ -304,10 +304,19 @@
                             image_url: imageUrl
                         }
                     ])
-                    .select()
-                    .single();
+                    .select();
 
                 if (error) throw error;
+                if (!postData || postData.length === 0) {
+                    throw new Error("Failed to create post.");
+                }
+                const post = postData[0];
+
+                // Extract and add hashtags
+                const hashtags = extractHashtags(content);
+                if (hashtags.length > 0) {
+                    await addHashtagsToPost(post.id, hashtags);
+                }
 
                 // Reset form
                 document.getElementById('postContent').value = '';
@@ -332,7 +341,8 @@
                         *,
                         profiles!posts_user_id_fkey (*),
                         likes (*),
-                        comments (count)
+                        comments (count),
+                        bookmarks (*)
                     `)
                     .order('created_at', { ascending: false });
 
@@ -387,9 +397,87 @@
         }
 
         function searchHashtag(hashtag) {
-            const searchInput = document.getElementById('searchInputModal');
-            searchInput.value = `#${hashtag}`;
-            handleSearch();
+            // No need to use the search modal, just load the posts directly
+            loadPostsByHashtag(hashtag);
+        }
+
+        async function loadPostsByHashtag(hashtag) {
+            try {
+                document.getElementById('feedTitle').textContent = `#${hashtag}`;
+
+                const { data, error } = await supabase
+                    .from('posts')
+                    .select(`
+                        *,
+                        profiles!posts_user_id_fkey (*),
+                        likes (*),
+                        comments (count),
+                        post_hashtags!inner(hashtags!inner(name))
+                    `)
+                    .eq('post_hashtags.hashtags.name', hashtag)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                posts = data || [];
+                renderPosts();
+                closeSearch(); // Close search modal after clicking a hashtag
+
+            } catch (error) {
+                console.error('Error loading posts by hashtag:', error);
+                showNotification(`Gagal memuat zen untuk #${hashtag}`, 'error');
+            }
+        }
+
+        function extractHashtags(content) {
+            const regex = /#(\w+)/g;
+            const matches = content.match(regex);
+            if (matches) {
+                // Return unique hashtags without the '#' symbol
+                return [...new Set(matches.map(tag => tag.substring(1)))];
+            }
+            return [];
+        }
+
+        async function addHashtagsToPost(postId, hashtags) {
+            try {
+                // 1. Find existing hashtags or create new ones
+                const { data: existingHashtags, error: findError } = await supabase
+                    .from('hashtags')
+                    .select('id, name')
+                    .in('name', hashtags);
+
+                if (findError) throw findError;
+
+                const existingHashtagNames = existingHashtags.map(h => h.name);
+                const newHashtagNames = hashtags.filter(h => !existingHashtagNames.includes(h));
+
+                let newHashtagIds = [];
+                if (newHashtagNames.length > 0) {
+                    const { data: createdHashtags, error: createError } = await supabase
+                        .from('hashtags')
+                        .insert(newHashtagNames.map(name => ({ name })))
+                        .select('id');
+
+                    if (createError) throw createError;
+                    newHashtagIds = createdHashtags.map(h => h.id);
+                }
+
+                const allHashtagIds = [...existingHashtags.map(h => h.id), ...newHashtagIds];
+
+                // 2. Link hashtags to the post in the join table
+                const links = allHashtagIds.map(hashtagId => ({
+                    post_id: postId,
+                    hashtag_id: hashtagId
+                }));
+
+                const { error: linkError } = await supabase.from('post_hashtags').insert(links);
+                if (linkError) throw linkError;
+
+            } catch (error) {
+                console.error('Error adding hashtags:', error);
+                // We don't show a notification here to not bother the user for a background task.
+            }
         }
 
         function createPostElement(post) {
@@ -399,6 +487,7 @@
 
             const timeAgo = getTimeAgo(new Date(post.created_at));
             const isLiked = post.likes && post.likes.some(like => like.user_id === currentUser?.id);
+            const isBookmarked = post.bookmarks && post.bookmarks.some(bookmark => bookmark.user_id === currentUser?.id);
             const verifiedBadge = getVerifiedBadge(post.profiles.username);
 
             div.innerHTML = `
@@ -440,9 +529,9 @@
                                     <div class="share-option" onclick="sharePostLink('${post.id}')"><i class="fas fa-link" style="margin-right: 0.5rem;"></i>Bagikan Tautan Postingan</div>
                                 </div>
                             </div>
-                            <button class="post-action">
-                                <i class="far fa-bookmark action-icon"></i>
-                                <span class="action-count">Simpan</span>
+                            <button onclick="toggleBookmark('${post.id}')" class="post-action ${isBookmarked ? 'bookmarked' : ''}">
+                                <i class="${isBookmarked ? 'fas' : 'far'} fa-bookmark action-icon"></i>
+                                <span class="action-count">${isBookmarked ? 'Disimpan' : 'Simpan'}</span>
                             </button>
                         </div>
                     </div>
@@ -450,6 +539,68 @@
             `;
 
             return div;
+        }
+
+        async function toggleBookmark(postId) {
+            if (!currentUser) {
+                toggleAuth();
+                return;
+            }
+
+            const post = posts.find(p => p.id === postId);
+            if (!post) return;
+
+            const isBookmarked = post.bookmarks.some(b => b.user_id === currentUser.id);
+
+            try {
+                if (isBookmarked) {
+                    // Unbookmark
+                    const { error } = await supabase
+                        .from('bookmarks')
+                        .delete()
+                        .match({ post_id: postId, user_id: currentUser.id });
+                    if (error) throw error;
+                    showNotification('Bookmark dihapus');
+                } else {
+                    // Bookmark
+                    const { error } = await supabase
+                        .from('bookmarks')
+                        .insert({ post_id: postId, user_id: currentUser.id });
+                    if (error) throw error;
+                    showNotification('Postingan disimpan!');
+                }
+                await updatePostInState(postId); // Refresh post state
+            } catch (error) {
+                showNotification('Gagal menyimpan bookmark: ' + error.message, 'error');
+            }
+        }
+
+        async function showBookmarkedPosts() {
+            if (!currentUser) {
+                toggleAuth();
+                return;
+            }
+            try {
+                document.getElementById('feedTitle').textContent = 'Disimpan';
+                const { data, error } = await supabase
+                    .from('posts')
+                    .select(`
+                        *,
+                        profiles!posts_user_id_fkey (*),
+                        likes (*),
+                        comments (count),
+                        bookmarks!inner(*)
+                    `)
+                    .eq('bookmarks.user_id', currentUser.id)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                renderPosts(data || []);
+
+            } catch (error) {
+                showNotification('Gagal memuat postingan yang disimpan', 'error');
+            }
         }
 
         async function toggleLike(postId) {
@@ -868,9 +1019,92 @@
             }
         }
 
-        function showUserProfile(userId) {
-            // Show user profile
-            document.getElementById('feedTitle').textContent = 'Profil Zen Master';
+        async function showUserProfile(userId) {
+            try {
+                // Fetch profile data
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', userId)
+                    .single();
+
+                if (profileError) throw profileError;
+                if (!profile) {
+                    showNotification('Pengguna tidak ditemukan', 'error');
+                    return;
+                }
+
+                // Fetch user's posts
+                const { data: userPosts, error: postsError } = await supabase
+                    .from('posts')
+                    .select(`
+                        *,
+                        profiles!inner(*),
+                        likes (*),
+                        comments (count)
+                    `)
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false });
+
+                if (postsError) throw postsError;
+
+                // Update UI
+                document.getElementById('feedTitle').textContent = profile.name;
+                const feed = document.getElementById('postsFeed');
+                feed.innerHTML = ''; // Clear the feed
+
+                // Create and append profile header
+                const profileHeader = createProfileHeader(profile, userPosts.length);
+                feed.appendChild(profileHeader);
+
+                // Render user's posts
+                renderPosts(userPosts);
+                closeSearch();
+
+            } catch (error) {
+                console.error('Error showing user profile:', error);
+                showNotification('Gagal memuat profil pengguna', 'error');
+            }
+        }
+
+        function createProfileHeader(profile, postCount) {
+            const header = document.createElement('div');
+            header.className = 'profile-header'; // You'll need to style this class
+
+            const isFollowing = false; // Placeholder for follow logic
+            const followButtonText = isFollowing ? 'Mengikuti' : 'Ikuti';
+            const verifiedBadge = getVerifiedBadge(profile.username);
+
+            header.innerHTML = `
+                <div class="profile-banner"></div>
+                <div class="profile-details">
+                    <div class="profile-avatar-container">
+                        <img src="${profile.avatar_url}" alt="${profile.name}" class="profile-avatar">
+                    </div>
+                    <div class="profile-actions">
+                        ${currentUser && currentUser.id === profile.id
+                            ? `<button class="zen-button" style="background: transparent; border: 1px solid #ccc;">Edit Profil</button>`
+                            : `<button class="zen-button">${followButtonText}</button>`
+                        }
+                    </div>
+                    <div class="profile-info">
+                        <h2 class="profile-name">${profile.name} ${verifiedBadge}</h2>
+                        <p class="profile-username">@${profile.username}</p>
+                        <p class="profile-bio">${profile.bio || 'Pengguna ZenCom'}</p>
+                        <div class="profile-stats">
+                            <span><strong>${profile.following_count || 0}</strong> Mengikuti</span>
+                            <span><strong>${profile.followers_count || 0}</strong> Pengikut</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="profile-tabs">
+                    <div class="profile-tab active">Zen (${postCount})</div>
+                    <div class="profile-tab">Balasan</div>
+                    <div class="profile-tab">Media</div>
+                    <div class="profile-tab">Suka</div>
+                </div>
+            `;
+            return header;
         }
 
         function showComments(postId) {

@@ -479,6 +479,15 @@
             color: white;
         }
 
+        .post-action.bookmarked {
+            background: #3498db;
+            color: white;
+        }
+
+        .post-action.bookmarked .action-icon {
+            color: white;
+        }
+
         .action-count {
             font-size: 0.875rem;
         }
@@ -948,4 +957,97 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+}
+
+/* Profile Page Styles */
+.profile-header {
+    background: white;
+    border-radius: 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    overflow: hidden; /* To contain the banner */
+}
+
+.profile-banner {
+    height: 200px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.profile-details {
+    padding: 1rem 1.5rem 1.5rem;
+    position: relative;
+}
+
+.profile-avatar-container {
+    position: absolute;
+    top: -50px; /* Pulls the avatar up */
+    left: 1.5rem;
+    border: 5px solid white;
+    border-radius: 50%;
+    background-color: white; /* Prevents banner showing through border */
+}
+
+.profile-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+}
+
+.profile-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+}
+
+.profile-info {
+    margin-top: 2.5rem; /* Space for the avatar */
+}
+
+.profile-name {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.profile-username {
+    color: #6b7280;
+    margin-bottom: 0.75rem;
+}
+
+.profile-bio {
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.profile-stats {
+    display: flex;
+    gap: 1.5rem;
+    color: #6b7280;
+}
+
+.profile-stats strong {
+    color: #1f2937;
+}
+
+.profile-tabs {
+    display: flex;
+    border-top: 1px solid #e5e7eb;
+}
+
+.profile-tab {
+    flex: 1;
+    text-align: center;
+    padding: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #6b7280;
+}
+
+.profile-tab:hover {
+    background-color: #f9fafb;
+}
+
+.profile-tab.active {
+    color: #667eea;
+    border-bottom: 2px solid #667eea;
 }
