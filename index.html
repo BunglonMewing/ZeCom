@@ -16,6 +16,7 @@
     <meta property="og:type" content="website">
     <title>ZenCom: Komunitas Kreatif & Berbagi Inspirasi</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7"></script>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -37,6 +38,15 @@
                     <button id="authBtn" onclick="toggleAuth()" class="zen-button">
                         Masuk
                     </button>
+                    <div id="settingsMenu" class="settings-menu">
+                        <button id="settingsBtn" class="settings-button">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div id="settingsDropdown" class="dropdown-content">
+                            <a href="#" id="settingsLink">Pengaturan</a>
+                            <a href="#" id="changeNameLink">Perubahan Nama</a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -344,5 +354,31 @@
     </div>
 
     <script src="app.js"></script>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-logo-text">Pengaturan</h2>
+                <button onclick="toggleSettingsModal()" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <p>Pengaturan aplikasi akan muncul di sini.</p>
+        </div>
+    </div>
+
+    <!-- Change Name Modal -->
+    <div id="changeNameModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-logo-text">Perubahan Nama</h2>
+                <button onclick="toggleChangeNameModal()" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <p>Formulir perubahan nama akan muncul di sini.</p>
+        </div>
+    </div>
 </body>
 </html>

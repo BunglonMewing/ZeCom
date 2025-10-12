@@ -24,6 +24,30 @@
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('settingsBtn').onclick = function() {
+                document.getElementById('settingsDropdown').classList.toggle('show');
+            };
+
+            document.getElementById('settingsLink').onclick = function() {
+                toggleSettingsModal();
+            };
+
+            document.getElementById('changeNameLink').onclick = function() {
+                toggleChangeNameModal();
+            };
+
+            window.onclick = function(event) {
+                if (!event.target.closest('.settings-menu')) {
+                    var dropdowns = document.getElementsByClassName('dropdown-content');
+                    for (var i = 0; i < dropdowns.length; i++) {
+                        var openDropdown = dropdowns[i];
+                        if (openDropdown.classList.contains('show')) {
+                            openDropdown.classList.remove('show');
+                        }
+                    }
+                }
+            };
+
             await checkAuth();
 
             // Check if we are loading a specific post
@@ -276,6 +300,16 @@
             return publicUrl;
         }
 
+        function toggleSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.toggle('active');
+        }
+
+        function toggleChangeNameModal() {
+            const modal = document.getElementById('changeNameModal');
+            modal.classList.toggle('active');
+        }
+
         async function createPost() {
             if (!currentUser) {
                 toggleAuth();
@@ -290,18 +324,26 @@
 
             try {
                 let imageUrl = null;
+                let imageText = null;
                 if (selectedFile) {
+                    showNotification('Menganalisis gambar...', 'info');
                     imageUrl = await uploadImage(selectedFile);
                     if (!imageUrl) return; // Upload failed
+
+                    // OCR
+                    const { data: { text } } = await Tesseract.recognize(selectedFile, 'eng');
+                    imageText = text;
                 }
 
+                // IMPORTANT: The 'image_text' column must be added to the 'posts' table in Supabase.
                 const { data, error } = await supabase
                     .from('posts')
                     .insert([
                         {
                             user_id: currentUser.id,
                             content: content,
-                            image_url: imageUrl
+                            image_url: imageUrl,
+                            image_text: imageText
                         }
                     ])
                     .select()
@@ -662,7 +704,7 @@
                         supabase
                             .from('posts')
                             .select('*, profiles!posts_user_id_fkey (*), likes(count), comments(count)')
-                            .ilike('content', `%${query}%`)
+                            .or(`content.ilike.%${query}%,image_text.ilike.%${query}%`)
                             .order('created_at', { ascending: false })
                             .limit(10)
                     ]);
