@@ -68,6 +68,10 @@
                     <i class="fas fa-user nav-icon"></i>
                     <span class="nav-text">Profil</span>
                 </a>
+                <a href="#" onclick="showCommunities()" class="nav-item">
+                    <i class="fas fa-users nav-icon"></i>
+                    <span class="nav-text">Komunitas</span>
+                </a>
                 <button onclick="showCreatePost()" class="zen-button" style="width: 100%; margin-top: 1rem;">
                     <i class="fas fa-plus mr-2"></i>Buat Zen
                 </button>
@@ -112,6 +116,7 @@
                     <img id="currentUserAvatar" src="https://picsum.photos/seed/currentuser/60/60" alt="User" class="post-avatar">
                     <div class="post-input-container">
                         <textarea id="postContent" placeholder="Bagikan zen Anda..." class="post-textarea" rows="4"></textarea>
+                        <select id="communitySelect" class="form-input" style="margin-top: 1rem;"></select>
                             <input type="file" id="imageUpload" class="hidden" accept="image/*" onchange="handleImageSelection(event)">
                             <img id="imagePreview" src="" alt="Pratinjau Gambar" class="hidden" style="max-width: 100%; border-radius: 0.75rem; margin-top: 1rem;">
                         <div class="post-actions">
@@ -137,6 +142,14 @@
             <!-- Posts Feed -->
             <div id="postsFeed" class="posts-feed">
                 <!-- Posts will be dynamically inserted here -->
+            </div>
+
+            <!-- Communities Page -->
+            <div id="communitiesPage" class="hidden">
+                <div id="communitiesList"></div>
+                <button onclick="showCreateCommunityModal()" class="zen-button" style="margin-top: 1rem;">
+                    <i class="fas fa-plus mr-2"></i>Buat Komunitas Baru
+                </button>
             </div>
         </main>
 
@@ -267,6 +280,30 @@
                 <i class="fas fa-check"></i>
             </div>
             <p id="notificationText" class="notification-text"></p>
+        </div>
+    </div>
+
+    <!-- Create Community Modal -->
+    <div id="createCommunityModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-logo-text">Buat Komunitas Baru</h2>
+                <button onclick="closeCreateCommunityModal()" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="createCommunityForm" onsubmit="event.preventDefault(); createCommunity();">
+                <input type="text" id="communityName" placeholder="Nama Komunitas" class="form-input">
+                <textarea id="communityDescription" placeholder="Deskripsi Komunitas" class="form-input" rows="4"></textarea>
+                <input type="file" id="communityAvatarUpload" class="hidden" accept="image/*">
+                <button type="button" onclick="document.getElementById('communityAvatarUpload').click()" class="zen-button">
+                    <i class="fas fa-image mr-2"></i>Pilih Avatar
+                </button>
+                <img id="communityAvatarPreview" src="" alt="Pratinjau Avatar" class="hidden" style="max-width: 100%; border-radius: 0.75rem; margin-top: 1rem;">
+                <button type="submit" class="zen-button" style="width: 100%; margin-top: 1rem;">
+                    Buat Komunitas
+                </button>
+            </form>
         </div>
     </div>
 

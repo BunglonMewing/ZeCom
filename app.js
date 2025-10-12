@@ -191,6 +191,9 @@
         async function loadUserData() {
             if (!currentUser) return;
 
+            // Load user's communities for the post creator dropdown
+            loadUserCommunities();
+
             let { data: profile, error } = await supabase
                 .from('profiles')
                 .select('*')
@@ -283,6 +286,13 @@
             }
 
             const content = document.getElementById('postContent').value.trim();
+            const communityId = document.getElementById('communitySelect').value;
+
+            if (!communityId) {
+                showNotification('Pilih komunitas untuk membagikan zen Anda', 'error');
+                return;
+            }
+
             if (!content && !selectedFile) {
                 showNotification('Mohon tulis zen atau pilih gambar', 'error');
                 return;
@@ -301,7 +311,8 @@
                         {
                             user_id: currentUser.id,
                             content: content,
-                            image_url: imageUrl
+                            image_url: imageUrl,
+                            community_id: communityId
                         }
                     ])
                     .select()
@@ -325,7 +336,32 @@
         }
 
         async function loadPosts() {
+            if (!currentUser) {
+                // Handle non-logged-in user view - maybe show popular posts?
+                // For now, just show an empty feed.
+                posts = [];
+                renderPosts();
+                return;
+            }
+
             try {
+                // First, get the list of communities the user is a member of
+                const { data: memberships, error: memberError } = await supabase
+                    .from('community_members')
+                    .select('community_id')
+                    .eq('user_id', currentUser.id);
+
+                if (memberError) throw memberError;
+
+                const communityIds = memberships.map(m => m.community_id);
+
+                if (communityIds.length === 0) {
+                    posts = [];
+                    renderPosts(); // Render an empty state or a "join communities" prompt
+                    return;
+                }
+
+                // Then, fetch posts only from those communities
                 const { data, error } = await supabase
                     .from('posts')
                     .select(`
@@ -334,6 +370,7 @@
                         likes (*),
                         comments (count)
                     `)
+                    .in('community_id', communityIds)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
@@ -591,6 +628,8 @@
         // Navigation functions
         function showFeed() {
             document.getElementById('feedTitle').textContent = 'Beranda';
+            document.getElementById('postsFeed').classList.remove('hidden');
+            document.getElementById('communitiesPage').classList.add('hidden');
             loadPosts();
         }
 
@@ -617,12 +656,240 @@
             showUserProfile(currentUser.id);
         }
 
+        function showCommunities() {
+            document.getElementById('feedTitle').textContent = 'Komunitas';
+            document.getElementById('postsFeed').classList.add('hidden');
+            document.getElementById('communitiesPage').classList.remove('hidden');
+            loadCommunities();
+        }
+
         function showCreatePost() {
             if (!currentUser) {
                 toggleAuth();
                 return;
             }
             document.getElementById('postContent').focus();
+        }
+
+        // Community functions
+        async function loadCommunities() {
+            try {
+                // Fetch all communities and the user's memberships in parallel
+                const [{ data: communities, error: commError }, { data: memberships, error: memberError }] = await Promise.all([
+                    supabase.from('communities').select('*'),
+                    supabase.from('community_members').select('community_id').eq('user_id', currentUser?.id || '')
+                ]);
+
+                if (commError) throw commError;
+                if (memberError) throw memberError;
+
+                const memberSet = new Set(memberships.map(m => m.community_id));
+                renderCommunities(communities, memberSet);
+
+            } catch (error) {
+                console.error('Error loading communities:', error);
+                showNotification('Gagal memuat komunitas', 'error');
+            }
+        }
+
+        function renderCommunities(communities, memberSet) {
+            const list = document.getElementById('communitiesList');
+            list.innerHTML = ''; // Clear existing list
+
+            if (communities.length === 0) {
+                list.innerHTML = `<p>Belum ada komunitas. Buat yang pertama!</p>`;
+                return;
+            }
+
+            communities.forEach(community => {
+                const isMember = memberSet.has(community.id);
+                const buttonHtml = isMember
+                    ? `<button onclick="leaveCommunity(${community.id})" class="zen-button" style="background: #ccc;">Keluar</button>`
+                    : `<button onclick="joinCommunity(${community.id})" class="zen-button">Gabung</button>`;
+
+                const div = document.createElement('div');
+                div.className = 'zen-card';
+                div.innerHTML = `
+                    <div class="post-header" style="justify-content: space-between;">
+                        <div style="display: flex; gap: 1rem;">
+                            <img src="${community.avatar_url || createAvatarPlaceholder(community.name)}" alt="${community.name}" class="post-avatar-large">
+                            <div class="post-meta">
+                                <h4 class="post-username">${community.name}</h4>
+                                <p>${community.description}</p>
+                            </div>
+                        </div>
+                        ${buttonHtml}
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function showCreateCommunityModal() {
+            document.getElementById('createCommunityModal').classList.add('active');
+        }
+
+        function closeCreateCommunityModal() {
+            document.getElementById('createCommunityModal').classList.remove('active');
+        }
+
+        async function createCommunity() {
+            if (!currentUser) {
+                toggleAuth();
+                return;
+            }
+
+            const name = document.getElementById('communityName').value.trim();
+            const description = document.getElementById('communityDescription').value.trim();
+            const avatarFile = document.getElementById('communityAvatarUpload').files[0];
+
+            if (!name) {
+                showNotification('Nama komunitas tidak boleh kosong', 'error');
+                return;
+            }
+
+            try {
+                let avatarUrl = null;
+                if (avatarFile) {
+                    const fileName = `${currentUser.id}/${Date.now()}-${avatarFile.name}`;
+                    const { data, error } = await supabase.storage
+                        .from('community-avatars')
+                        .upload(fileName, avatarFile);
+
+                    if (error) throw error;
+
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('community-avatars')
+                        .getPublicUrl(data.path);
+                    avatarUrl = publicUrl;
+                }
+
+                const { data: community, error } = await supabase
+                    .from('communities')
+                    .insert([
+                        {
+                            name: name,
+                            description: description,
+                            created_by: currentUser.id,
+                            avatar_url: avatarUrl
+                        }
+                    ])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                // Add the creator as a member of the community
+                const { error: memberError } = await supabase
+                    .from('community_members')
+                    .insert([
+                        {
+                            community_id: community.id,
+                            user_id: currentUser.id,
+                            role: 'admin'
+                        }
+                    ]);
+
+                if (memberError) throw memberError;
+
+                // Reset form and close modal
+                document.getElementById('createCommunityForm').reset();
+                document.getElementById('communityAvatarPreview').classList.add('hidden');
+                closeCreateCommunityModal();
+
+                // Refresh the list of communities
+                await loadCommunities();
+                showNotification('Komunitas baru berhasil dibuat! 🎉');
+
+            } catch (error) {
+                showNotification('Gagal membuat komunitas: ' + error.message, 'error');
+            }
+        }
+
+        async function loadUserCommunities() {
+            if (!currentUser) return;
+
+            const select = document.getElementById('communitySelect');
+            select.innerHTML = '<option value="">Pilih Komunitas...</option>'; // Default option
+
+            try {
+                const { data: memberships, error: memberError } = await supabase
+                    .from('community_members')
+                    .select('community_id')
+                    .eq('user_id', currentUser.id);
+
+                if (memberError) throw memberError;
+
+                const communityIds = memberships.map(m => m.community_id);
+
+                if (communityIds.length === 0) {
+                    select.innerHTML = '<option value="">Anda belum bergabung dengan komunitas manapun</option>';
+                    return;
+                }
+
+                const { data: communities, error: commError } = await supabase
+                    .from('communities')
+                    .select('id, name')
+                    .in('id', communityIds);
+
+                if (commError) throw commError;
+
+                communities.forEach(community => {
+                    const option = document.createElement('option');
+                    option.value = community.id;
+                    option.textContent = community.name;
+                    select.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error('Error loading user communities:', error);
+                select.innerHTML = '<option value="">Gagal memuat komunitas</option>';
+            }
+        }
+
+        async function joinCommunity(communityId) {
+            if (!currentUser) {
+                toggleAuth();
+                return;
+            }
+
+            try {
+                const { error } = await supabase
+                    .from('community_members')
+                    .insert({ community_id: communityId, user_id: currentUser.id });
+
+                if (error) throw error;
+
+                showNotification('Berhasil bergabung dengan komunitas! 🤝');
+                await loadCommunities(); // Refresh the main community list
+                await loadUserCommunities(); // Refresh the dropdown list
+
+            } catch (error) {
+                showNotification('Gagal bergabung dengan komunitas: ' + error.message, 'error');
+            }
+        }
+
+        async function leaveCommunity(communityId) {
+            if (!currentUser) {
+                toggleAuth();
+                return;
+            }
+
+            try {
+                const { error } = await supabase
+                    .from('community_members')
+                    .delete()
+                    .match({ community_id: communityId, user_id: currentUser.id });
+
+                if (error) throw error;
+
+                showNotification('Anda telah meninggalkan komunitas. 👋');
+                await loadCommunities(); // Refresh the main community list
+                await loadUserCommunities(); // Refresh the dropdown list
+
+            } catch (error) {
+                showNotification('Gagal meninggalkan komunitas: ' + error.message, 'error');
+            }
         }
 
         function showSearch() {
