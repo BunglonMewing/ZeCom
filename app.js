@@ -322,18 +322,15 @@
         function createSticker(imageUrl) {
             showNotification('Membuat stiker...', 'info');
             const img = new Image();
-            img.crossOrigin = 'anonymous'; // Mengatasi masalah CORS
+            img.crossOrigin = 'anonymous';
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const size = 512;
                 canvas.width = size;
                 canvas.height = size;
-
-                // Menggambar gambar ke canvas dengan ukuran yang pas
                 ctx.drawImage(img, 0, 0, size, size);
 
-                // Mengonversi ke WebP dan mengunduh
                 canvas.toBlob(blob => {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -343,13 +340,42 @@
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                    showNotification('Stiker berhasil dibuat!', 'success');
+
+                    // Show instructions instead of a simple success message
+                    showStickerInstructions();
+
                 }, 'image/webp');
             };
             img.onerror = () => {
                 showNotification('Gagal memuat gambar untuk stiker.', 'error');
             };
             img.src = imageUrl;
+        }
+
+        function showStickerInstructions() {
+            const modal = document.getElementById('postDetailModal'); // Reuse a modal structure
+            const content = document.getElementById('postDetailContent');
+
+            content.innerHTML = `
+                <div class="zen-card" style="text-align: center;">
+                    <i class="fab fa-whatsapp" style="font-size: 4rem; color: #25D366; margin-bottom: 1rem;"></i>
+                    <h3 class="section-title" style="margin-bottom: 1rem;">Stiker Berhasil Diunduh!</h3>
+                    <p class="post-content" style="font-size: 1rem; line-height: 1.5;">
+                        File stiker (.webp) telah disimpan di folder unduhan Anda. Karena batasan teknis, aplikasi web tidak bisa langsung menambahkan stiker ke WhatsApp.
+                    </p>
+                    <div style="text-align: left; margin-top: 1.5rem; background: #f3f4f6; padding: 1rem; border-radius: 0.75rem;">
+                        <strong>Langkah selanjutnya:</strong>
+                        <ol style="list-style-position: inside; padding-left: 0; margin-top: 0.5rem;">
+                            <li>Buka Play Store atau App Store, cari dan unduh aplikasi seperti <strong>"Sticker.ly"</strong> atau <strong>"Sticker Maker"</strong>.</li>
+                            <li>Buka aplikasi tersebut dan buat paket stiker baru.</li>
+                            <li>Tambahkan stiker yang baru saja Anda unduh dari galeri Anda.</li>
+                            <li>Publikasikan paket stiker tersebut ke WhatsApp Anda.</li>
+                        </ol>
+                    </div>
+                    <button onclick="closePostDetail()" class="zen-button" style="margin-top: 1.5rem;">Mengerti</button>
+                </div>
+            `;
+            modal.classList.add('active');
         }
 
         // Post functions
@@ -582,6 +608,15 @@
             const isLiked = post.likes && post.likes.some(like => like.user_id === currentUser?.id);
             const verifiedBadge = getVerifiedBadge(post.profiles.username);
 
+            // Add delete button only for the post owner
+            const isOwner = currentUser && currentUser.id === post.user_id;
+            const deleteButtonHTML = isOwner ? `
+                <button onclick="deletePost('${post.id}')" class="post-action delete-button">
+                    <i class="fas fa-trash action-icon"></i>
+                    <span class="action-count">Hapus</span>
+                </button>
+            ` : '';
+
             div.innerHTML = `
                 <div class="post-header">
                     <img src="${post.profiles.avatar_url}" alt="${post.profiles.name}" class="post-avatar-large" onclick="showUserProfile('${post.profiles.id}')">
@@ -614,7 +649,7 @@
                             <div class="post-action" style="position: relative;">
                                 <button onclick="toggleShareMenu('${post.id}')" class="post-action" style="padding: 0; background: transparent;">
                                     <i class="fas fa-share action-icon"></i>
-                                    <span class="action-count">Bagikan</span>
+                                    <span class="action-text">Bagikan</span>
                                 </button>
                                 <div id="share-menu-${post.id}" class="hidden" style="position: absolute; bottom: 100%; left: 0; background: white; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10; width: 200px; overflow: hidden;">
                                     ${post.image_url ? `<div class="share-option" onclick="createSticker('${post.image_url}')"><i class="fas fa-sticky-note" style="margin-right: 0.5rem;"></i>Buat Stiker</div>` : ''}
@@ -624,18 +659,83 @@
                             </div>
                             <button class="post-action">
                                 <i class="far fa-bookmark action-icon"></i>
-                                <span class="action-count">Simpan</span>
+                                <span class="action-text">Simpan</span>
                             </button>
                             <button onclick="showDonationModal('${post.id}', '${post.profiles.id}', '${post.profiles.name}')" class="post-action">
                                 <i class="fas fa-coins action-icon" style="color: #f59e0b;"></i>
-                                <span class="action-count">Donasi</span>
+                                <span class="action-text">Donasi</span>
                             </button>
+                            ${deleteButtonHTML.replace('action-count', 'action-text')}
                         </div>
                     </div>
                 </div>
             `;
 
             return div;
+        }
+
+        async function deletePost(postId) {
+            if (!currentUser) {
+                showNotification('Anda harus masuk untuk menghapus postingan.', 'error');
+                return;
+            }
+
+            const postToDelete = posts.find(p => p.id === postId);
+            if (!postToDelete) {
+                showNotification('Postingan tidak ditemukan.', 'error');
+                return;
+            }
+
+            if (postToDelete.user_id !== currentUser.id) {
+                showNotification('Anda tidak memiliki izin untuk menghapus postingan ini.', 'error');
+                return;
+            }
+
+            const confirmed = window.confirm("Apakah Anda yakin ingin menghapus zen ini? Tindakan ini tidak dapat dibatalkan.");
+
+            if (confirmed) {
+                try {
+                    if (postToDelete.image_url) {
+                        const urlParts = postToDelete.image_url.split('/');
+                        const filePath = urlParts.slice(urlParts.indexOf('post-images') + 1).join('/');
+
+                        if (filePath) {
+                            const { error: storageError } = await supabase.storage
+                                .from('post-images')
+                                .remove([filePath]);
+
+                            if (storageError) {
+                                console.error('Gagal menghapus gambar dari storage:', storageError);
+                                showNotification('Gagal menghapus gambar terkait, namun postingan akan tetap dihapus.', 'info');
+                            }
+                        }
+                    }
+
+                    const { error } = await supabase
+                        .from('posts')
+                        .delete()
+                        .match({ id: postId, user_id: currentUser.id });
+
+                    if (error) throw error;
+
+                    const postElement = document.getElementById(`post-${postId}`);
+                    if (postElement) {
+                        postElement.style.transition = 'opacity 0.5s ease';
+                        postElement.style.opacity = '0';
+                        setTimeout(() => {
+                            postElement.remove();
+                        }, 500);
+                    }
+
+                    posts = posts.filter(p => p.id !== postId);
+
+                    showNotification('Zen berhasil dihapus! 🗑️', 'success');
+
+                } catch (error) {
+                    console.error('Error deleting post:', error);
+                    showNotification('Gagal menghapus zen: ' + error.message, 'error');
+                }
+            }
         }
 
         // Donation Functions
