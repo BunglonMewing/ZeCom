@@ -112,8 +112,8 @@
                     <img id="currentUserAvatar" src="https://picsum.photos/seed/currentuser/60/60" alt="User" class="post-avatar">
                     <div class="post-input-container">
                         <textarea id="postContent" placeholder="Bagikan zen Anda..." class="post-textarea" rows="4"></textarea>
-                            <input type="file" id="imageUpload" class="hidden" accept="image/*" onchange="handleImageSelection(event)">
-                            <img id="imagePreview" src="" alt="Pratinjau Gambar" class="hidden" style="max-width: 100%; border-radius: 0.75rem; margin-top: 1rem;">
+                            <input type="file" id="imageUpload" class="hidden" accept="image/*" multiple onchange="handleImageSelection(event)">
+                            <div id="imagePreviewContainer" class="hidden" style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem;"></div>
                         <div class="post-actions">
                             <div class="post-tools">
                                     <button id="imageUploadBtn" class="tool-button" onclick="document.getElementById('imageUpload').click()">
@@ -343,6 +343,7 @@
         </div>
     </div>
 
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <script src="app.js"></script>
 </body>
 </html>
