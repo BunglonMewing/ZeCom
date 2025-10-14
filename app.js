@@ -226,6 +226,7 @@
                 document.getElementById('currentUserAvatar').src = profile.avatar_url;
                 document.getElementById('userFollowing').textContent = profile.following_count || 0;
                 document.getElementById('userFollowers').textContent = profile.followers_count || 0;
+                document.getElementById('userCoins').textContent = profile.coins || 0; // Tampilkan koin
 
                 // Load post count
                 const { count } = await supabase
@@ -234,6 +235,72 @@
                     .eq('user_id', currentUser.id);
 
                 document.getElementById('userPosts').textContent = count || 0;
+
+                // Cek status klaim koin mingguan
+                checkWeeklyClaimStatus();
+            }
+        }
+
+        async function checkWeeklyClaimStatus() {
+            if (!currentUser) return;
+
+            const claimButton = document.getElementById('claimButton');
+            try {
+                const { data, error } = await supabase
+                    .from('weekly_claims')
+                    .select('last_claimed_at')
+                    .eq('user_id', currentUser.id)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') { // Abaikan error jika tidak ada baris (not found)
+                    throw error;
+                }
+
+                let canClaim = true;
+                if (data) {
+                    const lastClaimDate = new Date(data.last_claimed_at);
+                    const now = new Date();
+                    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+                    if (now - lastClaimDate < oneWeek) {
+                        canClaim = false;
+                    }
+                }
+
+                if (canClaim) {
+                    claimButton.style.display = 'block';
+                } else {
+                    claimButton.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking weekly claim status:', error);
+                claimButton.style.display = 'none'; // Sembunyikan jika ada error
+            }
+        }
+
+        async function claimWeeklyCoins() {
+            if (!currentUser) return;
+
+            const claimButton = document.getElementById('claimButton');
+            claimButton.disabled = true;
+            claimButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
+
+            try {
+                // Panggil RPC function di Supabase untuk klaim koin
+                const { data, error } = await supabase.rpc('claim_weekly_coins');
+
+                if (error) throw error;
+
+                showNotification(data, 'success');
+
+                // Perbarui data pengguna dan status tombol
+                await loadUserData();
+                claimButton.style.display = 'none';
+
+            } catch (error) {
+                showNotification('Gagal mengklaim koin: ' + error.message, 'error');
+            } finally {
+                claimButton.disabled = false;
+                claimButton.innerHTML = '<i class="fas fa-gift mr-2"></i>Klaim Koin Mingguan';
             }
         }
 
@@ -349,12 +416,16 @@
                             // Combine original content with image-specific hashtags
                             const finalContent = `${originalContent} ${fileObject.hashtags || ''}`.trim();
 
+                            // BUG FIX: The 'image_text' column is removed from the insert statement
+                            // because it doesn't exist in the Supabase table schema.
+                            // This prevents the "Gagal membuat zen" error.
+                            // The extracted OCR text is available in `fileObject.extractedText` if you add the column later.
                             const { error } = await supabase.from('posts').insert([
                                 {
                                     user_id: currentUser.id,
                                     content: finalContent,
-                                    image_url: imageUrl,
-                                    image_text: fileObject.extractedText
+                                    image_url: imageUrl
+                                    // image_text: fileObject.extractedText // This line is removed
                                 }
                             ]);
                             if (error) throw error;
@@ -365,7 +436,7 @@
                     const { error } = await supabase.from('posts').insert([
                         {
                             user_id: currentUser.id,
-                            content: content
+                            content: originalContent // Corrected from 'content' to 'originalContent'
                         }
                     ]);
                     if (error) throw error;
@@ -506,12 +577,84 @@
                                 <i class="far fa-bookmark action-icon"></i>
                                 <span class="action-count">Simpan</span>
                             </button>
+                            <button onclick="showDonationModal('${post.id}', '${post.profiles.id}', '${post.profiles.name}')" class="post-action">
+                                <i class="fas fa-coins action-icon" style="color: #f59e0b;"></i>
+                                <span class="action-count">Donasi</span>
+                            </button>
                         </div>
                     </div>
                 </div>
             `;
 
             return div;
+        }
+
+        // Donation Functions
+        function showDonationModal(postId, recipientId, recipientName) {
+            if (!currentUser) {
+                toggleAuth();
+                showNotification('Anda harus masuk untuk memberikan donasi.', 'info');
+                return;
+            }
+            if (currentUser.id === recipientId) {
+                showNotification('Anda tidak bisa berdonasi ke diri sendiri.', 'info');
+                return;
+            }
+
+            const modal = document.getElementById('donationModal');
+            document.getElementById('donationRecipient').textContent = recipientName;
+            document.getElementById('donationAmount').value = '';
+
+            const confirmBtn = document.getElementById('confirmDonationBtn');
+            // Set onclick dynamically to pass parameters without global variables
+            confirmBtn.onclick = () => processDonation(postId, recipientId);
+
+            modal.classList.add('active');
+        }
+
+        function closeDonationModal() {
+            const modal = document.getElementById('donationModal');
+            modal.classList.remove('active');
+        }
+
+        function setDonationAmount(amount) {
+            document.getElementById('donationAmount').value = amount;
+        }
+
+        async function processDonation(postId, recipientId) {
+            const amountInput = document.getElementById('donationAmount');
+            const amount = parseInt(amountInput.value, 10);
+
+            if (isNaN(amount) || amount <= 0) {
+                showNotification('Jumlah donasi tidak valid.', 'error');
+                return;
+            }
+
+            const confirmBtn = document.getElementById('confirmDonationBtn');
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Mengirim...';
+
+            try {
+                const { data, error } = await supabase.rpc('process_donation', {
+                    p_post_id: postId,
+                    p_recipient_id: recipientId,
+                    p_amount: amount
+                });
+
+                if (error) throw error;
+
+                showNotification(data.message, data.status === 'success' ? 'success' : 'error');
+
+                if (data.status === 'success') {
+                    await loadUserData(); // Perbarui saldo koin di UI
+                    closeDonationModal();
+                }
+            } catch (error) {
+                showNotification('Gagal mengirim donasi: ' + error.message, 'error');
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Kirim Donasi';
+            }
         }
 
         async function toggleLike(postId) {

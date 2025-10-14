@@ -95,7 +95,15 @@
                         <span id="userPosts" class="stat-number">0</span>
                         <span class="stat-label">Zen</span>
                     </div>
+                    <div class="stat">
+                        <i class="fas fa-coins text-yellow-500 mr-1"></i>
+                        <span id="userCoins" class="stat-number">0</span>
+                        <span class="stat-label">Koin</span>
+                    </div>
                 </div>
+                <button id="claimButton" onclick="claimWeeklyCoins()" class="zen-button" style="width: 100%; margin-top: 1rem; background-color: #4ade80; border-color: #4ade80; display: none;">
+                    <i class="fas fa-gift mr-2"></i>Klaim Koin Mingguan
+                </button>
             </div>
         </aside>
 
@@ -256,6 +264,34 @@
             </div>
             <div id="searchResults" class="search-results">
                 <!-- Search results will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Donation Modal -->
+    <div id="donationModal" class="modal">
+        <div class="modal-content" style="max-width: 28rem;">
+            <div class="modal-header">
+                <h3 class="form-title">Donasi Koin untuk Zen Master</h3>
+                <button onclick="closeDonationModal()" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="donationModalBody">
+                <p class="text-gray-600 mb-4">Anda akan mengirim donasi ke <strong id="donationRecipient"></strong>.</p>
+                <div class="flex items-center bg-gray-100 p-3 rounded-lg">
+                    <i class="fas fa-coins text-yellow-500 text-2xl mr-4"></i>
+                    <input type="number" id="donationAmount" placeholder="Jumlah koin" class="form-input" style="flex-grow: 1; border: none; background: transparent;">
+                </div>
+                <div class="flex justify-between mt-4">
+                    <button onclick="setDonationAmount(10)" class="zen-button-secondary">10</button>
+                    <button onclick="setDonationAmount(50)" class="zen-button-secondary">50</button>
+                    <button onclick="setDonationAmount(100)" class="zen-button-secondary">100</button>
+                    <button onclick="setDonationAmount(500)" class="zen-button-secondary">500</button>
+                </div>
+                <button id="confirmDonationBtn" class="zen-button" style="width: 100%; margin-top: 1.5rem;">
+                    <i class="fas fa-paper-plane mr-2"></i>Kirim Donasi
+                </button>
             </div>
         </div>
     </div>
