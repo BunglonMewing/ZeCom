@@ -34,6 +34,15 @@
                     <button onclick="showSearch()" class="close-button">
                         <i class="fas fa-search text-xl"></i>
                     </button>
+                    <div id="coinSection" class="coin-section" style="display: none; align-items: center; gap: 0.75rem;">
+                        <div class="coin-display" style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.8); padding: 0.5rem 1rem; border-radius: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                            <i class="fas fa-coins" style="color: #f59e0b; margin-right: 0.5rem;"></i>
+                            <span id="headerUserCoins" style="font-weight: 600;">0</span>
+                        </div>
+                        <button id="headerClaimButton" onclick="claimWeeklyCoins()" class="zen-button" style="display: none; background: #4ade80; border-color: #4ade80;">
+                            <i class="fas fa-gift mr-2"></i>Klaim
+                        </button>
+                    </div>
                     <button id="authBtn" onclick="toggleAuth()" class="zen-button">
                         Masuk
                     </button>

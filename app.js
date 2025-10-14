@@ -174,17 +174,20 @@
             const authBtn = document.getElementById('authBtn');
             const userCard = document.getElementById('userCard');
             const createPostSection = document.getElementById('createPostSection');
+            const coinSection = document.getElementById('coinSection');
 
             if (currentUser) {
                 authBtn.textContent = 'Keluar';
                 authBtn.onclick = logout;
                 userCard.style.display = 'block';
                 createPostSection.style.display = 'block';
+                coinSection.style.display = 'flex';
             } else {
                 authBtn.textContent = 'Masuk';
                 authBtn.onclick = toggleAuth;
                 userCard.style.display = 'none';
                 createPostSection.style.display = 'none';
+                coinSection.style.display = 'none';
             }
         }
 
@@ -226,7 +229,8 @@
                 document.getElementById('currentUserAvatar').src = profile.avatar_url;
                 document.getElementById('userFollowing').textContent = profile.following_count || 0;
                 document.getElementById('userFollowers').textContent = profile.followers_count || 0;
-                document.getElementById('userCoins').textContent = profile.coins || 0; // Tampilkan koin
+                document.getElementById('userCoins').textContent = profile.coins || 0;
+                document.getElementById('headerUserCoins').textContent = profile.coins || 0; // Tampilkan koin di header
 
                 // Load post count
                 const { count } = await supabase
@@ -245,6 +249,7 @@
             if (!currentUser) return;
 
             const claimButton = document.getElementById('claimButton');
+            const headerClaimButton = document.getElementById('headerClaimButton');
             try {
                 const { data, error } = await supabase
                     .from('weekly_claims')
@@ -268,12 +273,15 @@
 
                 if (canClaim) {
                     claimButton.style.display = 'block';
+                    headerClaimButton.style.display = 'block';
                 } else {
                     claimButton.style.display = 'none';
+                    headerClaimButton.style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error checking weekly claim status:', error);
                 claimButton.style.display = 'none'; // Sembunyikan jika ada error
+                headerClaimButton.style.display = 'none'; // Sembunyikan jika ada error
             }
         }
 
@@ -281,8 +289,11 @@
             if (!currentUser) return;
 
             const claimButton = document.getElementById('claimButton');
+            const headerClaimButton = document.getElementById('headerClaimButton');
             claimButton.disabled = true;
+            headerClaimButton.disabled = true;
             claimButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
+            headerClaimButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
 
             try {
                 // Panggil RPC function di Supabase untuk klaim koin
@@ -295,13 +306,50 @@
                 // Perbarui data pengguna dan status tombol
                 await loadUserData();
                 claimButton.style.display = 'none';
+                headerClaimButton.style.display = 'none';
+
 
             } catch (error) {
                 showNotification('Gagal mengklaim koin: ' + error.message, 'error');
             } finally {
                 claimButton.disabled = false;
+                headerClaimButton.disabled = false;
                 claimButton.innerHTML = '<i class="fas fa-gift mr-2"></i>Klaim Koin Mingguan';
+                headerClaimButton.innerHTML = '<i class="fas fa-gift mr-2"></i>Klaim';
             }
+        }
+
+        function createSticker(imageUrl) {
+            showNotification('Membuat stiker...', 'info');
+            const img = new Image();
+            img.crossOrigin = 'anonymous'; // Mengatasi masalah CORS
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const size = 512;
+                canvas.width = size;
+                canvas.height = size;
+
+                // Menggambar gambar ke canvas dengan ukuran yang pas
+                ctx.drawImage(img, 0, 0, size, size);
+
+                // Mengonversi ke WebP dan mengunduh
+                canvas.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `sticker-${Date.now()}.webp`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showNotification('Stiker berhasil dibuat!', 'success');
+                }, 'image/webp');
+            };
+            img.onerror = () => {
+                showNotification('Gagal memuat gambar untuk stiker.', 'error');
+            };
+            img.src = imageUrl;
         }
 
         // Post functions
@@ -569,6 +617,7 @@
                                     <span class="action-count">Bagikan</span>
                                 </button>
                                 <div id="share-menu-${post.id}" class="hidden" style="position: absolute; bottom: 100%; left: 0; background: white; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10; width: 200px; overflow: hidden;">
+                                    ${post.image_url ? `<div class="share-option" onclick="createSticker('${post.image_url}')"><i class="fas fa-sticky-note" style="margin-right: 0.5rem;"></i>Buat Stiker</div>` : ''}
                                     ${post.image_url ? `<div class="share-option" onclick="downloadImage('${post.image_url}', 'zencom-post-${post.id}.jpg')"><i class="fas fa-download" style="margin-right: 0.5rem;"></i>Download foto</div>` : ''}
                                     <div class="share-option" onclick="sharePostLink('${post.id}')"><i class="fas fa-link" style="margin-right: 0.5rem;"></i>Bagikan Tautan Postingan</div>
                                 </div>
