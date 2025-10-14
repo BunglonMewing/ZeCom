@@ -12,7 +12,7 @@
         // Global state
         let currentUser = null;
         let posts = [];
-        let selectedFile = null;
+        let selectedFiles = [];
         let searchTimeout;
         let trendingTopics = [
             { topic: '#ZenCom', count: 15420 },
@@ -239,20 +239,72 @@
 
         // Post functions
         function handleImageSelection(event) {
-            const file = event.target.files[0];
-            if (!file) {
-                selectedFile = null;
-                document.getElementById('imagePreview').classList.add('hidden');
+            const files = event.target.files;
+            const previewContainer = document.getElementById('imagePreviewContainer');
+
+            selectedFiles = [];
+            previewContainer.innerHTML = '';
+
+            if (!files || files.length === 0) {
+                previewContainer.classList.add('hidden');
                 return;
             }
-            selectedFile = file;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const preview = document.getElementById('imagePreview');
-                preview.src = e.target.result;
-                preview.classList.remove('hidden');
-            };
-            reader.readAsDataURL(file);
+
+            previewContainer.classList.remove('hidden');
+
+            Array.from(files).forEach(file => {
+                if (file.size > 50 * 1024 * 1024) {
+                    showNotification(`Gambar "${file.name}" terlalu besar (maks 50MB).`, 'error');
+                    return;
+                }
+
+                const fileObject = { file: file, extractedText: '' };
+                selectedFiles.push(fileObject);
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imgElement = document.createElement('img');
+                    imgElement.src = e.target.result;
+                    imgElement.alt = "Pratinjau Gambar";
+                    imgElement.style.maxWidth = '100px';
+                    imgElement.style.maxHeight = '100px';
+                    imgElement.style.borderRadius = '0.75rem';
+                    imgElement.style.objectFit = 'cover';
+                    previewContainer.appendChild(imgElement);
+                };
+                reader.readAsDataURL(file);
+                performOcrOnImage(fileObject);
+            });
+        }
+
+        async function performOcrOnImage(fileObject) {
+            showNotification(`Menganalisis teks dari ${fileObject.file.name}...`, 'info');
+            try {
+                const { data: { text } } = await Tesseract.recognize(
+                    fileObject.file,
+                    'eng+ind',
+                    { logger: m => console.log(m) }
+                );
+
+                fileObject.extractedText = text;
+
+                const words = text.match(/\b\w{3,}\b/g) || [];
+                const hashtags = words
+                    .slice(0, 5)
+                    .map(word => `#${word}`)
+                    .join(' ');
+
+                fileObject.hashtags = hashtags;
+
+                if (hashtags) {
+                    showNotification(`Hashtag ditemukan untuk ${fileObject.file.name}!`, 'success');
+                } else {
+                     showNotification(`Tidak ada teks terdeteksi di ${fileObject.file.name}.`, 'info');
+                }
+            } catch (error) {
+                console.error('OCR Error:', error);
+                showNotification(`Gagal menganalisis teks dari ${fileObject.file.name}.`, 'error');
+            }
         }
 
         async function uploadImage(file) {
@@ -282,43 +334,53 @@
                 return;
             }
 
-            const content = document.getElementById('postContent').value.trim();
-            if (!content && !selectedFile) {
+            const originalContent = document.getElementById('postContent').value.trim();
+            if (!originalContent && selectedFiles.length === 0) {
                 showNotification('Mohon tulis zen atau pilih gambar', 'error');
                 return;
             }
 
             try {
-                let imageUrl = null;
-                if (selectedFile) {
-                    imageUrl = await uploadImage(selectedFile);
-                    if (!imageUrl) return; // Upload failed
-                }
+                if (selectedFiles.length > 0) {
+                    // Create a post for each selected image
+                    for (const fileObject of selectedFiles) {
+                        const imageUrl = await uploadImage(fileObject.file);
+                        if (imageUrl) {
+                            // Combine original content with image-specific hashtags
+                            const finalContent = `${originalContent} ${fileObject.hashtags || ''}`.trim();
 
-                const { data, error } = await supabase
-                    .from('posts')
-                    .insert([
+                            const { error } = await supabase.from('posts').insert([
+                                {
+                                    user_id: currentUser.id,
+                                    content: finalContent,
+                                    image_url: imageUrl,
+                                    image_text: fileObject.extractedText
+                                }
+                            ]);
+                            if (error) throw error;
+                        }
+                    }
+                } else {
+                    // Create a single text-only post
+                    const { error } = await supabase.from('posts').insert([
                         {
                             user_id: currentUser.id,
-                            content: content,
-                            image_url: imageUrl
+                            content: content
                         }
-                    ])
-                    .select()
-                    .single();
-
-                if (error) throw error;
+                    ]);
+                    if (error) throw error;
+                }
 
                 // Reset form
                 document.getElementById('postContent').value = '';
                 document.getElementById('imageUpload').value = '';
-                selectedFile = null;
-                const preview = document.getElementById('imagePreview');
-                preview.src = '';
-                preview.classList.add('hidden');
+                selectedFiles = [];
+                const previewContainer = document.getElementById('imagePreviewContainer');
+                previewContainer.innerHTML = '';
+                previewContainer.classList.add('hidden');
 
                 await loadPosts();
-                showNotification('Zen Anda telah dibagikan! ✨');
+                showNotification('Zen Anda telah berhasil dibagikan! ✨');
             } catch (error) {
                 showNotification('Gagal membuat zen: ' + error.message, 'error');
             }
