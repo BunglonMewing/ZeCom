@@ -479,7 +479,7 @@
             color: white;
         }
 
-        .action-count {
+        .action-count, .action-text {
             font-size: 0.875rem;
         }
 
@@ -812,11 +812,18 @@
 
             .main-container {
                 margin-top: 3.5rem;
-                padding: 0 0.5rem;
+                padding: 0;
             }
 
             .main-content {
-                padding: 1rem 0.5rem;
+                padding: 0;
+            }
+
+            .zen-card {
+                border-radius: 0;
+                box-shadow: none;
+                border-bottom: 1px solid #e5e7eb;
+                margin-bottom: 0.5rem;
             }
 
             .post-form {
@@ -850,13 +857,21 @@
             }
 
             .post-footer {
-                flex-wrap: wrap;
-                gap: 0.5rem;
+                flex-wrap: nowrap;
                 justify-content: space-around;
             }
 
             .post-action {
                 padding: 0.5rem;
+                background: transparent;
+            }
+
+            .action-text {
+                display: none;
+            }
+
+            .post-action .action-count {
+                display: block;
             }
 
             .zen-button {
